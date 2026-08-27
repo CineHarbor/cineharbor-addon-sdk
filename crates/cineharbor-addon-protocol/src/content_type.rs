@@ -35,3 +35,17 @@ impl std::fmt::Display for ContentType {
         f.write_str(self.as_str())
     }
 }
+
+impl std::str::FromStr for ContentType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "movie" => Ok(ContentType::Movie),
+            "series" => Ok(ContentType::Series),
+            "channel" => Ok(ContentType::Channel),
+            "tv" => Ok(ContentType::Tv),
+            _ => Err(()),
+        }
+    }
+}

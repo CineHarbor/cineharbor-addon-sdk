@@ -6,8 +6,12 @@ license.workspace = true
 
 [dependencies]
 cineharbor-addon-protocol = { path = "../cineharbor-addon-protocol" }
+axum.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
