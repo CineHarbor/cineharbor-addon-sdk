@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use cineharbor_addon_protocol::{
     Catalog, CatalogResponse, ContentType, Manifest, MetaDetail, MetaPreview, MetaResponse,
     Resource, Stream, StreamsResponse, Video,
@@ -12,8 +13,9 @@ use cineharbor_addon_sdk::addon::{router, Addon, CatalogRequest};
 
 struct Hello;
 
+#[async_trait]
 impl Addon for Hello {
-    fn manifest(&self) -> Manifest {
+    async fn manifest(&self) -> Manifest {
         Manifest {
             id: "local.hello".into(),
             version: "1.0.0".into(),
@@ -36,60 +38,39 @@ impl Addon for Hello {
         }
     }
 
-    fn catalog(&self, _req: CatalogRequest) -> CatalogResponse {
+    async fn catalog(&self, _req: CatalogRequest) -> CatalogResponse {
         CatalogResponse {
             metas: vec![MetaPreview {
-                id: "tt-demo".into(),
-                r#type: ContentType::Movie,
-                name: "Demo Movie".into(),
                 poster: Some("https://example.test/poster.jpg".into()),
-                background: None,
-                logo: None,
                 description: Some("Hello addon 的示例条目".into()),
-                release_info: None,
                 year: Some("2024".into()),
                 genres: vec!["demo".into()],
-                imdb_rating: None,
-                poster_shape: None,
-                behavior_hints: None,
+                ..MetaPreview::new("tt-demo", ContentType::Movie, "Demo Movie")
             }],
         }
     }
 
-    fn meta(&self, _ty: ContentType, id: &str) -> Option<MetaResponse> {
+    async fn meta(&self, _ty: ContentType, id: &str) -> Option<MetaResponse> {
         if id != "tt-demo" {
             return None;
         }
         Some(MetaResponse {
             meta: MetaDetail {
-                id: id.into(),
-                r#type: ContentType::Movie,
-                name: "Demo Movie".into(),
                 genres: vec!["demo".into()],
                 poster: Some("https://example.test/poster.jpg".into()),
-                background: None,
-                logo: None,
                 description: Some("Hello addon 的示例条目".into()),
-                release_info: None,
                 year: Some("2024".into()),
-                country: None,
-                runtime: None,
-                imdb_rating: None,
-                director: vec![],
-                cast: vec![],
-                slug: None,
                 videos: vec![Video {
                     id: "tt-demo".into(),
                     name: "Demo Movie".into(),
                     ..Video::default()
                 }],
-                links: vec![],
-                behavior_hints: None,
+                ..MetaDetail::new(id, ContentType::Movie, "Demo Movie")
             },
         })
     }
 
-    fn streams(&self, _ty: ContentType, _id: &str) -> StreamsResponse {
+    async fn streams(&self, _ty: ContentType, _id: &str) -> StreamsResponse {
         StreamsResponse {
             streams: vec![Stream {
                 name: Some("720p".into()),

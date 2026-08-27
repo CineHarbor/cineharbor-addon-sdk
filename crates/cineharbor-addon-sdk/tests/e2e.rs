@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use cineharbor_addon_protocol::{
     CatalogResponse, ContentType, Manifest, MetaResponse, Resource, Stream, StreamsResponse,
 };
@@ -10,8 +11,9 @@ use cineharbor_addon_sdk::AddonClient;
 
 struct Hello;
 
+#[async_trait]
 impl Addon for Hello {
-    fn manifest(&self) -> Manifest {
+    async fn manifest(&self) -> Manifest {
         Manifest {
             id: "local.hello".into(),
             version: "1.0.0".into(),
@@ -28,15 +30,15 @@ impl Addon for Hello {
         }
     }
 
-    fn catalog(&self, _req: CatalogRequest) -> CatalogResponse {
+    async fn catalog(&self, _req: CatalogRequest) -> CatalogResponse {
         CatalogResponse::default()
     }
 
-    fn meta(&self, _ty: ContentType, _id: &str) -> Option<MetaResponse> {
+    async fn meta(&self, _ty: ContentType, _id: &str) -> Option<MetaResponse> {
         None
     }
 
-    fn streams(&self, _ty: ContentType, _id: &str) -> StreamsResponse {
+    async fn streams(&self, _ty: ContentType, _id: &str) -> StreamsResponse {
         StreamsResponse {
             streams: vec![Stream {
                 name: Some("720p".into()),

@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -25,13 +26,14 @@ pub struct CatalogRequest {
 }
 
 /// 供给侧 addon 接口。单 addon 进程内共享实现，需 `Send + Sync`。
+#[async_trait]
 pub trait Addon: Send + Sync {
-    fn manifest(&self) -> Manifest;
-    fn catalog(&self, req: CatalogRequest) -> CatalogResponse;
+    async fn manifest(&self) -> Manifest;
+    async fn catalog(&self, req: CatalogRequest) -> CatalogResponse;
     /// 返回 `None` 代表 404。
-    fn meta(&self, ty: ContentType, id: &str) -> Option<MetaResponse>;
-    fn streams(&self, ty: ContentType, id: &str) -> StreamsResponse;
-    fn subtitles(&self, ty: ContentType, id: &str, extra: &str) -> SubtitlesResponse {
+    async fn meta(&self, ty: ContentType, id: &str) -> Option<MetaResponse>;
+    async fn streams(&self, ty: ContentType, id: &str) -> StreamsResponse;
+    async fn subtitles(&self, ty: ContentType, id: &str, extra: &str) -> SubtitlesResponse {
         let _ = (ty, id, extra);
         SubtitlesResponse::default()
     }
@@ -58,7 +60,7 @@ fn parse_ty(s: &str) -> Option<ContentType> {
 }
 
 async fn manifest_handler(State(addon): State<Arc<dyn Addon>>) -> Json<Manifest> {
-    Json(addon.manifest())
+    Json(addon.manifest().await)
 }
 
 async fn catalog_handler(
@@ -72,7 +74,7 @@ async fn catalog_handler(
         extra: None,
         skip: None,
     };
-    Ok(Json(addon.catalog(req)))
+    Ok(Json(addon.catalog(req).await))
 }
 
 async fn catalog_extra_handler(
@@ -93,7 +95,7 @@ async fn catalog_extra_handler(
         let (name, value) = seg.split_once('=').ok_or(StatusCode::BAD_REQUEST)?;
         req.extra = Some((name.to_string(), value.to_string()));
     }
-    Ok(Json(addon.catalog(req)))
+    Ok(Json(addon.catalog(req).await))
 }
 
 async fn meta_handler(
@@ -103,6 +105,7 @@ async fn meta_handler(
     let ty = parse_ty(&ty).ok_or(StatusCode::BAD_REQUEST)?;
     addon
         .meta(ty, strip_json(&id))
+        .await
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -112,7 +115,7 @@ async fn stream_handler(
     Path((ty, id)): Path<(String, String)>,
 ) -> Result<Json<StreamsResponse>, StatusCode> {
     let ty = parse_ty(&ty).ok_or(StatusCode::BAD_REQUEST)?;
-    Ok(Json(addon.streams(ty, strip_json(&id))))
+    Ok(Json(addon.streams(ty, strip_json(&id)).await))
 }
 
 async fn subtitles_handler(
@@ -120,5 +123,9 @@ async fn subtitles_handler(
     Path((ty, id, seg)): Path<(String, String, String)>,
 ) -> Result<Json<SubtitlesResponse>, StatusCode> {
     let ty = parse_ty(&ty).ok_or(StatusCode::BAD_REQUEST)?;
-    Ok(Json(addon.subtitles(ty, strip_json(&id), strip_json(&seg))))
+    Ok(Json(
+        addon
+            .subtitles(ty, strip_json(&id), strip_json(&seg))
+            .await,
+    ))
 }

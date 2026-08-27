@@ -41,3 +41,24 @@ pub struct MetaPreview {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub behavior_hints: Option<BehaviorHints>,
 }
+
+impl MetaPreview {
+    /// 最小构造：只填 id/type/name，其余字段留默认空值。
+    pub fn new(id: impl Into<String>, r#type: ContentType, name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            r#type,
+            name: name.into(),
+            poster: None,
+            background: None,
+            logo: None,
+            description: None,
+            release_info: None,
+            year: None,
+            genres: Vec::new(),
+            imdb_rating: None,
+            poster_shape: None,
+            behavior_hints: None,
+        }
+    }
+}

@@ -6,6 +6,8 @@ CineHarbor 内容源 addon 协议与 SDK，对应 Stremio 的 `stremio-addon-sdk
 - crate：
   - `cineharbor-addon-protocol`：manifest/catalog/meta/stream/subtitles 类型与校验
   - `cineharbor-addon-sdk`：消费侧 `AddonClient` + 供给侧 `Addon` trait / `router`
+  - `cineharbor-addon-bangumi`：bgm.tv 动画元数据参考 addon（catalog/meta）
+  - `cineharbor-addon-live`：M3U8 直播参考 addon（catalog/meta/stream）
 
 ## 用法
 

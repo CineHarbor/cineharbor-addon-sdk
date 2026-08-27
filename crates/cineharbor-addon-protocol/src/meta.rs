@@ -54,6 +54,33 @@ pub struct MetaDetail {
     pub behavior_hints: Option<BehaviorHints>,
 }
 
+impl MetaDetail {
+    /// 最小构造：只填 id/type/name，其余字段留默认空值。
+    pub fn new(id: impl Into<String>, r#type: ContentType, name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            r#type,
+            name: name.into(),
+            genres: Vec::new(),
+            poster: None,
+            background: None,
+            logo: None,
+            description: None,
+            release_info: None,
+            year: None,
+            country: None,
+            runtime: None,
+            imdb_rating: None,
+            director: Vec::new(),
+            cast: Vec::new(),
+            slug: None,
+            videos: Vec::new(),
+            links: Vec::new(),
+            behavior_hints: None,
+        }
+    }
+}
+
 /// 视频条目（集/预告片等）。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
