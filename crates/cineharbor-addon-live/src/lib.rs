@@ -175,7 +175,16 @@ http://example.test/2.m3u8
         let addon = LiveAddon::from_playlist("Live", PLAYLIST);
         let s = addon.streams(ContentType::Tv, "live:0").await;
         assert_eq!(s.streams.len(), 1);
-        assert_eq!(s.streams[0].url.as_deref(), Some("http://example.test/1.m3u8"));
-        assert!(addon.streams(ContentType::Tv, "live:99").await.streams.is_empty());
+        assert_eq!(
+            s.streams[0].url.as_deref(),
+            Some("http://example.test/1.m3u8")
+        );
+        assert!(
+            addon
+                .streams(ContentType::Tv, "live:99")
+                .await
+                .streams
+                .is_empty()
+        );
     }
 }

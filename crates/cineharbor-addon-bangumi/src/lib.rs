@@ -88,7 +88,10 @@ impl Addon for BangumiAddon {
 
     async fn meta(&self, _ty: ContentType, id: &str) -> Option<MetaResponse> {
         let subject_id = id.strip_prefix(ID_PREFIX)?;
-        let body = self.fetch(&format!("/v0/subjects/{subject_id}")).await.ok()?;
+        let body = self
+            .fetch(&format!("/v0/subjects/{subject_id}"))
+            .await
+            .ok()?;
         map_subject(&body).ok()
     }
 

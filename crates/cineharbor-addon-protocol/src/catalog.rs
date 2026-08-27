@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::manifest::BehaviorHints;
 use crate::ContentType;
+use crate::manifest::BehaviorHints;
 
 /// catalog 端点响应。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use cineharbor_addon_protocol::{
     CatalogResponse, ContentType, Manifest, MetaResponse, Resource, Stream, StreamsResponse,
 };
-use cineharbor_addon_sdk::addon::{router, Addon, CatalogRequest};
 use cineharbor_addon_sdk::AddonClient;
+use cineharbor_addon_sdk::addon::{Addon, CatalogRequest, router};
 
 struct Hello;
 
@@ -55,7 +55,9 @@ async fn roundtrip_serve_and_consume() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        axum::serve(listener, app.into_make_service()).await.unwrap();
+        axum::serve(listener, app.into_make_service())
+            .await
+            .unwrap();
     });
 
     let client = AddonClient::new(format!("http://{addr}")).unwrap();

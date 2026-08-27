@@ -31,7 +31,7 @@ impl AddonClient {
             s => {
                 return Err(AddonClientError::InvalidBaseUrl(format!(
                     "不支持的 scheme: {s}"
-                )))
+                )));
             }
         }
         Ok(Self {

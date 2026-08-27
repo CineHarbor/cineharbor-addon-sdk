@@ -9,7 +9,7 @@ use cineharbor_addon_protocol::{
     Catalog, CatalogResponse, ContentType, Manifest, MetaDetail, MetaPreview, MetaResponse,
     Resource, Stream, StreamsResponse, Video,
 };
-use cineharbor_addon_sdk::addon::{router, Addon, CatalogRequest};
+use cineharbor_addon_sdk::addon::{Addon, CatalogRequest, router};
 
 struct Hello;
 

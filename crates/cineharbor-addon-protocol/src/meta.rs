@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::ContentType;
 use crate::manifest::BehaviorHints;
 use crate::streams::Stream;
-use crate::ContentType;
 
 /// meta 端点响应。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

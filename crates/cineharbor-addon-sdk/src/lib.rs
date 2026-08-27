@@ -6,6 +6,6 @@
 pub mod addon;
 pub mod client;
 
+pub use addon::{Addon, CatalogRequest, router};
 pub use cineharbor_addon_protocol::*;
-pub use addon::{router, Addon, CatalogRequest};
 pub use client::{AddonClient, AddonClientError};

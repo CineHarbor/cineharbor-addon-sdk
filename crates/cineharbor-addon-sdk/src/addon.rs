@@ -124,8 +124,6 @@ async fn subtitles_handler(
 ) -> Result<Json<SubtitlesResponse>, StatusCode> {
     let ty = parse_ty(&ty).ok_or(StatusCode::BAD_REQUEST)?;
     Ok(Json(
-        addon
-            .subtitles(ty, strip_json(&id), strip_json(&seg))
-            .await,
+        addon.subtitles(ty, strip_json(&id), strip_json(&seg)).await,
     ))
 }
