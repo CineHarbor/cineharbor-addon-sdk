@@ -1,0 +1,20 @@
+agnir:
+  version: "0.1"
+  discovery_profile: "repository-filesystem/0.1"
+
+project:
+  identity: "urn:cineharbor:project:cineharbor-addon-sdk"
+
+memory:
+  state: ".agnir/state.md"
+  next_actions: ".agnir/next-actions.md"
+  decisions: ".agnir/decisions.md"
+  evidence: ".agnir/evidence/"
+
+policy:
+  checkpoint: event-driven
+
+extensions:
+  agnir/repository:
+    canonical: "CineHarbor/cineharbor-addon-sdk"
+    authoritative_ref: "main"
