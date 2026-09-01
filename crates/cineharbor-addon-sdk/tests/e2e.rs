@@ -73,3 +73,50 @@ async fn roundtrip_serve_and_consume() {
     // 不存在的 meta 走 404 → 客户端报错。
     assert!(client.meta(ContentType::Movie, "missing").await.is_err());
 }
+
+#[tokio::test]
+async fn manifest_serves_cors_headers() {
+    let app = router(Arc::new(Hello));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app.into_make_service())
+            .await
+            .unwrap();
+    });
+
+    let origin = "https://cineharbor.example";
+
+    // 简单 GET：响应带 allow-origin（跨源 `fetch` 直连必需）。
+    let response = reqwest::Client::new()
+        .get(format!("http://{addr}/manifest.json"))
+        .header("Origin", origin)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .and_then(|value| value.to_str().ok()),
+        Some("*")
+    );
+
+    // 预检 OPTIONS：204 + allow-origin。
+    let preflight = reqwest::Client::new()
+        .request(reqwest::Method::OPTIONS, format!("http://{addr}/manifest.json"))
+        .header("Origin", origin)
+        .header("Access-Control-Request-Method", "GET")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(preflight.status(), 204);
+    assert_eq!(
+        preflight
+            .headers()
+            .get("access-control-allow-origin")
+            .and_then(|value| value.to_str().ok()),
+        Some("*")
+    );
+}

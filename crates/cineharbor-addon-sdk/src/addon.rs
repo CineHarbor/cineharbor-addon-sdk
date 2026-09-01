@@ -7,8 +7,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Path, Request, State};
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -40,6 +42,9 @@ pub trait Addon: Send + Sync {
 }
 
 /// 由 addon 生成 Stremio 兼容路由。P3 由 `cineharbor-local-service` 作 host 复用。
+///
+/// 挂 permissive CORS（`Access-Control-Allow-Origin: *`）：web 薄客户端经 WASM 中的
+/// `fetch` 直连 standalone addon 属跨源请求，必需该头；OPTIONS 预检直接回 204。
 pub fn router(addon: Arc<dyn Addon>) -> Router {
     Router::new()
         .route("/manifest.json", get(manifest_handler))
@@ -49,6 +54,38 @@ pub fn router(addon: Arc<dyn Addon>) -> Router {
         .route("/stream/{ty}/{id}", get(stream_handler))
         .route("/subtitles/{ty}/{id}/{seg}", get(subtitles_handler))
         .with_state(addon)
+        .layer(axum::middleware::from_fn(cors_middleware))
+}
+
+fn apply_cors(headers: &mut HeaderMap) {
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        HeaderValue::from_static("GET,HEAD,OPTIONS"),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_HEADERS,
+        HeaderValue::from_static("*"),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_EXPOSE_HEADERS,
+        HeaderValue::from_static("*"),
+    );
+}
+
+async fn cors_middleware(request: Request, next: Next) -> Response {
+    // 预检（OPTIONS）直接 204，非预检先跑业务再补头。
+    if request.method() == Method::OPTIONS {
+        let mut response = StatusCode::NO_CONTENT.into_response();
+        apply_cors(response.headers_mut());
+        return response;
+    }
+    let mut response = next.run(request).await;
+    apply_cors(response.headers_mut());
+    response
 }
 
 fn strip_json(s: &str) -> &str {

@@ -1,0 +1,15 @@
+[package]
+name = "cineharbor-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axum.workspace = true
+regex = "1"
+reqwest.workspace = true
+serde.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "cineharbor-addon-live"
+name = "cineharbor-addon-douban"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,14 +7,12 @@ license.workspace = true
 [dependencies]
 cineharbor-addon-protocol = { path = "../cineharbor-addon-protocol" }
 cineharbor-addon-sdk = { path = "../cineharbor-addon-sdk" }
-cineharbor-media = { path = "../cineharbor-media" }
 async-trait.workspace = true
 axum.workspace = true
+regex = "1"
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-
-[dev-dependencies]
-tokio.workspace = true
+url.workspace = true

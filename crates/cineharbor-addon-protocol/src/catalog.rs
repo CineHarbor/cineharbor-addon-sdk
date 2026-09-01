@@ -37,6 +37,8 @@ pub struct MetaPreview {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub imdb_rating: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rating: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub poster_shape: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub behavior_hints: Option<BehaviorHints>,
@@ -57,6 +59,7 @@ impl MetaPreview {
             year: None,
             genres: Vec::new(),
             imdb_rating: None,
+            rating: None,
             poster_shape: None,
             behavior_hints: None,
         }
