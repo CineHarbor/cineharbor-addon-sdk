@@ -49,7 +49,7 @@ CC BY-NC-SA 4.0
 
 本项目使用 **Agnir**（project-owned durable continuity protocol）持久保存可恢复的 Project 连续性，本仓库根目录是已授权的 Project Entry Point。开始任何 Project 工作前：
 
-1. 读取顶层 `AGNIR.yaml`；
+1. 读取顶层 `AGNIR.yaml`，校验兼容线、Project identity 与 lineage；
 2. 加载 Current State（`.agnir/state.md`）与 Next Actions（`.agnir/next-actions.md`）；
 3. 需要时再加载 Decisions（`.agnir/decisions.md`）与 Evidence（`.agnir/evidence/`）；
 4. durable Agnir Project truth 优先于聊天记录与 Agent 私有记忆，除非被更新的 Principal 指令或直接观测到的当前 Project 事实覆盖；
