@@ -13,9 +13,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use cineharbor_addon_live::{parse_m3u8, LiveAddon, LiveSource};
+use cineharbor_addon_live::{LiveAddon, LiveSource, parse_m3u8};
 use cineharbor_addon_sdk::addon::router;
-use cineharbor_media::{live_proxy_router, ProxyParts, SourceHeaders, DEFAULT_WEB_UA};
+use cineharbor_media::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, live_proxy_router};
 
 const DEMO_PLAYLIST: &str = "\
 #EXTM3U
@@ -80,6 +80,7 @@ async fn build_addon() -> (LiveAddon, HashMap<String, SourceHeaders>) {
                                 SourceHeaders {
                                     ua: source.ua.clone(),
                                     referer: source.referer.clone(),
+                                    disable_ad_filter: false,
                                 },
                             )
                         })
@@ -103,7 +104,10 @@ async fn build_addon() -> (LiveAddon, HashMap<String, SourceHeaders>) {
         }
     }
 
-    (LiveAddon::from_playlist("demo", DEMO_PLAYLIST), HashMap::new())
+    (
+        LiveAddon::from_playlist("demo", DEMO_PLAYLIST),
+        HashMap::new(),
+    )
 }
 
 #[tokio::main]
@@ -124,6 +128,7 @@ async fn main() {
             .expect("build proxy client"),
         sources: Arc::new(source_headers),
         public_base_url: public_base,
+        access_token: None,
     });
 
     let app = router(Arc::new(addon)).merge(live_proxy_router(proxy_parts));

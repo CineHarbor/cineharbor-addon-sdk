@@ -1,18 +1,19 @@
 //! 媒体代理 HTTP handler（native，reqwest + axum）：standalone addon 自挂转链服务。
 //!
 //! 独立 addon 用 `/media/vod/*` 或 `/media/live/*` 把上游 CDN 拉回来、重写 m3u8、再转发给
-//! 浏览器（带 UA/Referer + CORS），对齐 local-service 的 `vod_proxy`/`live_proxy`（不含磁盘缓存、
-//! 广告过滤、identity-encoding 回退等本地优化；这些留 local-service，后续再按需迁入）。
+//! 浏览器（带 UA/Referer + CORS）。vod m3u8 含广告过滤；配置 `access_token` 后
+//! `/media/vod/*` 必须带匹配的 `token` 查询参数。
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::extract::{Query, State};
-use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
 
+use crate::ad_filter::{AdFilterConfig, filter_m3u8};
 use crate::{rewrite_live_manifest_content, rewrite_vod_manifest_content};
 
 pub const DEFAULT_WEB_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -22,6 +23,7 @@ pub const DEFAULT_WEB_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Appl
 pub struct SourceHeaders {
     pub ua: Option<String>,
     pub referer: Option<String>,
+    pub disable_ad_filter: bool,
 }
 
 /// 代理路由的共享状态。
@@ -29,12 +31,14 @@ pub struct ProxyParts {
     pub client: reqwest::Client,
     pub sources: Arc<HashMap<String, SourceHeaders>>,
     pub public_base_url: String,
+    pub access_token: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VodProxyQuery {
     pub source: Option<String>,
     pub url: Option<String>,
+    pub token: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -83,6 +87,9 @@ async fn vod_m3u8(
     State(parts): State<Arc<ProxyParts>>,
     Query(query): Query<VodProxyQuery>,
 ) -> Response {
+    if let Some(response) = authorize(&parts, query.token.as_deref()) {
+        return response;
+    }
     let Some((source, url)) = parse_query(query.source, query.url) else {
         return bad_request("missing source or url");
     };
@@ -90,7 +97,22 @@ async fn vod_m3u8(
         Ok(text) => {
             let rewritten =
                 rewrite_vod_manifest_content(&text, &url, &source, &parts.public_base_url);
-            manifest_response(rewritten)
+            let rewritten = inject_access_token(&rewritten, parts.access_token.as_deref());
+            let disable_ad_filter = parts
+                .sources
+                .get(&source)
+                .is_some_and(|headers| headers.disable_ad_filter);
+            let body = if disable_ad_filter {
+                rewritten
+            } else {
+                let filtered = filter_m3u8(&rewritten, &AdFilterConfig::default());
+                if filtered.changed {
+                    filtered.filtered
+                } else {
+                    rewritten
+                }
+            };
+            manifest_response(body)
         }
         Err(response) => response,
     }
@@ -100,6 +122,9 @@ async fn vod_bytes(
     State(parts): State<Arc<ProxyParts>>,
     Query(query): Query<VodProxyQuery>,
 ) -> Response {
+    if let Some(response) = authorize(&parts, query.token.as_deref()) {
+        return response;
+    }
     let Some((source, url)) = parse_query(query.source, query.url) else {
         return bad_request("missing source or url");
     };
@@ -115,13 +140,8 @@ async fn live_m3u8(
     };
     match fetch_manifest(&parts, &source, &url).await {
         Ok(text) => {
-            let rewritten = rewrite_live_manifest_content(
-                &text,
-                &url,
-                &source,
-                &parts.public_base_url,
-                false,
-            );
+            let rewritten =
+                rewrite_live_manifest_content(&text, &url, &source, &parts.public_base_url, false);
             manifest_response(rewritten)
         }
         Err(response) => response,
@@ -138,9 +158,53 @@ async fn live_bytes(
     forward_bytes(&parts, &source, &url).await
 }
 
+fn authorize(parts: &ProxyParts, provided: Option<&str>) -> Option<Response> {
+    let expected = parts
+        .access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let provided = provided.map(str::trim).unwrap_or("");
+    if provided == expected {
+        None
+    } else {
+        Some((StatusCode::UNAUTHORIZED, "unauthorized").into_response())
+    }
+}
+
+fn inject_access_token(content: &str, token: Option<&str>) -> String {
+    let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) else {
+        return content.to_string();
+    };
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer.append_pair("token", token);
+    let suffix = format!("&{}", serializer.finish());
+    content
+        .split('\n')
+        .map(|line| {
+            if line.contains("/media/vod/") && line.contains("source=") && !line.contains("token=")
+            {
+                if let Some(quote_at) = line.rfind('"') {
+                    let (prefix, suffix_quote) = line.split_at(quote_at);
+                    format!("{prefix}{suffix}{suffix_quote}")
+                } else {
+                    format!("{line}{suffix}")
+                }
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn parse_query(source: Option<String>, url: Option<String>) -> Option<(String, String)> {
-    let source = source.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())?;
-    let url = url.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())?;
+    let source = source
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())?;
+    let url = url
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())?;
     Some((source, url))
 }
 
@@ -182,11 +246,7 @@ fn cors_headers(headers: &mut HeaderMap) {
     );
 }
 
-async fn fetch_manifest(
-    parts: &ProxyParts,
-    source: &str,
-    url: &str,
-) -> Result<String, Response> {
+async fn fetch_manifest(parts: &ProxyParts, source: &str, url: &str) -> Result<String, Response> {
     let response = parts
         .client
         .get(url)
@@ -195,7 +255,10 @@ async fn fetch_manifest(
         .await
         .map_err(|error| bad_gateway(format!("upstream fetch failed: {error}")))?;
     if !response.status().is_success() {
-        return Err(bad_gateway(format!("upstream status: {}", response.status())));
+        return Err(bad_gateway(format!(
+            "upstream status: {}",
+            response.status()
+        )));
     }
     response
         .text()
@@ -241,7 +304,9 @@ mod tests {
     async fn vod_m3u8_proxies_and_rewrites() {
         let upstream = Router::new().route(
             "/p/index.m3u8",
-            get(|| async { "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:4,\nseg1.ts\n" }),
+            get(|| async {
+                "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:4,\nseg1.ts\n"
+            }),
         );
         let upstream_addr = serve_router(upstream).await;
 
@@ -249,11 +314,13 @@ mod tests {
             client: reqwest::Client::new(),
             sources: Arc::new(HashMap::new()),
             public_base_url: "http://proxy.test".into(),
+            access_token: None,
         });
         let proxy_addr = serve_router(vod_proxy_router(parts)).await;
 
         let upstream_url = format!("http://{upstream_addr}/p/index.m3u8");
-        let encoded = url::form_urlencoded::byte_serialize(upstream_url.as_bytes()).collect::<String>();
+        let encoded =
+            url::form_urlencoded::byte_serialize(upstream_url.as_bytes()).collect::<String>();
         let response = reqwest::get(format!(
             "http://{proxy_addr}/media/vod/m3u8?source=src&url={encoded}"
         ))
@@ -272,6 +339,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn vod_proxy_requires_token_when_configured() {
+        let parts = Arc::new(ProxyParts {
+            client: reqwest::Client::new(),
+            sources: Arc::new(HashMap::new()),
+            public_base_url: "http://proxy.test".into(),
+            access_token: Some("secret".into()),
+        });
+        let proxy_addr = serve_router(vod_proxy_router(parts)).await;
+        let denied = reqwest::get(format!(
+            "http://{proxy_addr}/media/vod/segment?source=src&url=http://x/a.ts"
+        ))
+        .await
+        .unwrap();
+        assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn live_m3u8_uses_cineharbor_source_param() {
         let upstream = Router::new().route(
             "/live/master.m3u8",
@@ -283,11 +367,13 @@ mod tests {
             client: reqwest::Client::new(),
             sources: Arc::new(HashMap::new()),
             public_base_url: "http://proxy.test".into(),
+            access_token: None,
         });
         let proxy_addr = serve_router(live_proxy_router(parts)).await;
 
         let upstream_url = format!("http://{upstream_addr}/live/master.m3u8");
-        let encoded = url::form_urlencoded::byte_serialize(upstream_url.as_bytes()).collect::<String>();
+        let encoded =
+            url::form_urlencoded::byte_serialize(upstream_url.as_bytes()).collect::<String>();
         let response = reqwest::get(format!(
             "http://{proxy_addr}/media/live/m3u8?cineharbor-source=live1&url={encoded}"
         ))

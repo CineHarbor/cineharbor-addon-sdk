@@ -8,7 +8,9 @@ license.workspace = true
 cineharbor-addon-protocol = { path = "../cineharbor-addon-protocol" }
 cineharbor-addon-sdk = { path = "../cineharbor-addon-sdk" }
 async-trait.workspace = true
+axum.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true

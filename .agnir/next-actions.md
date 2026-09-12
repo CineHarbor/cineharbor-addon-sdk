@@ -6,3 +6,8 @@
 2. P3 起 `cineharbor-local-service`（core 仓）依赖本 SDK 作 addon host 接线；届时移除 local-service 内置 douban/live/vod。
 3. 保持与 Stremio addon 协议双向互操，协议变化同步 `protocol.md`。
 4. `cargo test --workspace --all-targets`。
+5. **2026-09-12 P4 拍板后本仓工作**（不接受能力降级）：
+   1. ✅ douban addon 已支撑 web 搜索页 cutover。
+   2. ✅ bangumi addon：calendar 保留 weekday（`genres[0]`）+ rating/air_date；新增独立 bin `:11474`。
+   3. ✅ vod catalog 搜索被 web 富消费方直连（排序/过滤在客户端）。
+   4. ✅ `cineharbor-media`：`filter_m3u8` + `CINEHARBOR_MEDIA_PROXY_TOKEN`（query `token`）。

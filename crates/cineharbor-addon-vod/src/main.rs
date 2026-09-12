@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use cineharbor_addon_sdk::addon::router;
 use cineharbor_addon_vod::{VodAddon, VodConfig};
-use cineharbor_media::{vod_proxy_router, ProxyParts, SourceHeaders, DEFAULT_WEB_UA};
+use cineharbor_media::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, vod_proxy_router};
 
 fn load_config() -> VodConfig {
     let Some(path) = std::env::var("CINEHARBOR_VOD_SITES").ok() else {
@@ -47,11 +47,16 @@ async fn main() {
                     SourceHeaders {
                         ua: site.ua.clone(),
                         referer: site.referer.clone(),
+                        disable_ad_filter: site.disable_ad_filter,
                     },
                 )
             })
             .collect::<HashMap<_, _>>(),
     );
+    let access_token = std::env::var("CINEHARBOR_MEDIA_PROXY_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let proxy_parts = Arc::new(ProxyParts {
         client: reqwest::Client::builder()
             .user_agent(DEFAULT_WEB_UA)
@@ -59,6 +64,7 @@ async fn main() {
             .expect("build proxy client"),
         sources,
         public_base_url: public_base.clone(),
+        access_token,
     });
 
     config.public_base_url = Some(public_base);

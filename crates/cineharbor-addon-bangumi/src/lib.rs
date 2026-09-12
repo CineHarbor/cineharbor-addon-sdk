@@ -102,10 +102,24 @@ impl Addon for BangumiAddon {
 
 // —— 上游 JSON → 协议类型（纯函数，可离线单测）——
 
+#[derive(Deserialize, Default)]
+struct CalendarWeekday {
+    #[serde(default)]
+    en: String,
+}
+
 #[derive(Deserialize)]
 struct CalendarDay {
     #[serde(default)]
+    weekday: CalendarWeekday,
+    #[serde(default)]
     items: Vec<CalendarItem>,
+}
+
+#[derive(Deserialize, Default)]
+struct CalendarRating {
+    #[serde(default)]
+    score: f64,
 }
 
 #[derive(Deserialize)]
@@ -118,7 +132,10 @@ struct CalendarItem {
     summary: String,
     #[serde(default)]
     air_date: String,
+    #[serde(default)]
     images: BgmImages,
+    #[serde(default)]
+    rating: CalendarRating,
 }
 
 #[derive(Deserialize)]
@@ -134,7 +151,7 @@ struct Subject {
     images: BgmImages,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct BgmImages {
     #[serde(default)]
     large: Option<String>,
@@ -160,21 +177,51 @@ fn nonempty(s: &str) -> Option<String> {
     }
 }
 
-/// 把 bgm.tv `/calendar` 响应映射为目录（摊平 7 天的条目）。
+fn format_score(score: f64) -> Option<String> {
+    if score <= 0.0 {
+        return None;
+    }
+    let tenths = (score * 10.0).round() as i64;
+    if tenths % 10 == 0 {
+        Some((tenths / 10).to_string())
+    } else {
+        Some(format!("{}.{}", tenths / 10, tenths % 10))
+    }
+}
+
+/// 把 bgm.tv `/calendar` 响应映射为目录（摊平 7 天）。
+///
+/// 页面需要按星期分组：`genres[0]` = `weekday.en`（Mon…Sun）；
+/// `name` = 中文名（无则原名），`description` = 原名（有中文名时），
+/// `release_info` = `air_date`，`rating` = 评分。
 pub fn map_calendar(json: &str) -> Result<CatalogResponse, serde_json::Error> {
     let days: Vec<CalendarDay> = serde_json::from_str(json)?;
     let metas = days
         .into_iter()
-        .flat_map(|d| d.items)
-        .map(|it| MetaPreview {
-            poster: it.images.large,
-            description: nonempty(&it.summary),
-            year: year_of(&it.air_date),
-            ..MetaPreview::new(
-                format!("{ID_PREFIX}{}", it.id),
-                ContentType::Series,
-                display_name(&it.name, &it.name_cn),
-            )
+        .flat_map(|day| {
+            let weekday = day.weekday.en;
+            day.items.into_iter().map(move |it| {
+                let has_cn = !it.name_cn.trim().is_empty();
+                MetaPreview {
+                    poster: it.images.large.filter(|value| !value.is_empty()),
+                    description: if has_cn {
+                        nonempty(&it.name)
+                    } else {
+                        nonempty(&it.summary)
+                    },
+                    year: year_of(&it.air_date),
+                    release_info: nonempty(&it.air_date),
+                    rating: format_score(it.rating.score),
+                    genres: nonempty(&weekday)
+                        .map(|value| vec![value])
+                        .unwrap_or_default(),
+                    ..MetaPreview::new(
+                        format!("{ID_PREFIX}{}", it.id),
+                        ContentType::Series,
+                        display_name(&it.name, &it.name_cn),
+                    )
+                }
+            })
         })
         .collect();
     Ok(CatalogResponse { metas })
@@ -202,11 +249,12 @@ mod tests {
     use super::*;
 
     const CALENDAR: &str = r#"[
-      { "weekday": { "id": 1 },
+      { "weekday": { "en": "Fri", "id": 5 },
         "items": [
           { "id": 40748, "name": "Sousou no Frieren", "name_cn": "葬送的芙莉莲",
             "summary": "魔法使芙莉莲的旅途", "air_date": "2023-09-29",
-            "images": { "large": "https://lain.bgm.tv/pic/cover/l/frieren.jpg" } }
+            "images": { "large": "https://lain.bgm.tv/pic/cover/l/frieren.jpg" },
+            "rating": { "score": 9.0 } }
         ] }
     ]"#;
 
@@ -225,6 +273,10 @@ mod tests {
         assert_eq!(m.r#type, ContentType::Series);
         assert_eq!(m.name, "葬送的芙莉莲");
         assert_eq!(m.year.as_deref(), Some("2023"));
+        assert_eq!(m.release_info.as_deref(), Some("2023-09-29"));
+        assert_eq!(m.description.as_deref(), Some("Sousou no Frieren"));
+        assert_eq!(m.genres, vec!["Fri"]);
+        assert_eq!(m.rating.as_deref(), Some("9"));
         assert!(m.poster.is_some());
     }
 

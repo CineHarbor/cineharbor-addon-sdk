@@ -13,8 +13,10 @@ use std::sync::OnceLock;
 use regex::Regex;
 use url::Url;
 
+mod ad_filter;
 mod serve;
-pub use serve::{live_proxy_router, vod_proxy_router, ProxyParts, SourceHeaders, DEFAULT_WEB_UA};
+pub use ad_filter::{AdFilterConfig, FilterResult, filter_m3u8};
+pub use serve::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, live_proxy_router, vod_proxy_router};
 
 /// HLS 资产类别，决定重写到哪个代理端点。
 #[derive(Clone, Copy)]
@@ -219,7 +221,9 @@ pub fn rewrite_attribute_uri(
     let resolved_url = resolve_url(base_url, uri_match.as_str());
     let proxied_url = match asset_kind {
         VodAssetKind::M3u8 => build_vod_proxy_m3u8_url(public_base_url, source, &resolved_url),
-        VodAssetKind::Segment => build_vod_proxy_segment_url(public_base_url, source, &resolved_url),
+        VodAssetKind::Segment => {
+            build_vod_proxy_segment_url(public_base_url, source, &resolved_url)
+        }
         VodAssetKind::Key => build_vod_proxy_key_url(public_base_url, source, &resolved_url),
     };
 
@@ -564,17 +568,21 @@ mod tests {
     #[test]
     fn builds_vod_proxy_url_with_encoding() {
         assert_eq!(
-            build_vod_proxy_url("http://pub", "/media/vod/segment", "src", "https://cdn.test/x.ts"),
+            build_vod_proxy_url(
+                "http://pub",
+                "/media/vod/segment",
+                "src",
+                "https://cdn.test/x.ts"
+            ),
             "http://pub/media/vod/segment?source=src&url=https%3A%2F%2Fcdn.test%2Fx.ts"
         );
     }
 
     #[test]
     fn builds_live_proxy_url_with_source_key() {
-        let url = build_live_proxy_m3u8_url("http://pub", "live1", "https://cdn.test/live.m3u8", true);
-        assert!(url.starts_with(
-            "http://pub/media/live/m3u8?cineharbor-source=live1&url="
-        ));
+        let url =
+            build_live_proxy_m3u8_url("http://pub", "live1", "https://cdn.test/live.m3u8", true);
+        assert!(url.starts_with("http://pub/media/live/m3u8?cineharbor-source=live1&url="));
         assert!(url.ends_with("&allowCORS=true") || url.contains("allowCORS=true"));
     }
 
@@ -636,12 +644,18 @@ mod tests {
 
     #[test]
     fn resolves_urls() {
-        assert_eq!(get_base_url("https://cdn.test/a/b/index.m3u8"), "https://cdn.test/a/b/");
+        assert_eq!(
+            get_base_url("https://cdn.test/a/b/index.m3u8"),
+            "https://cdn.test/a/b/"
+        );
         assert_eq!(
             resolve_url("https://cdn.test/a/b/", "segment.ts"),
             "https://cdn.test/a/b/segment.ts"
         );
-        assert_eq!(resolve_url("https://cdn.test/a/b/", "/root.ts"), "https://cdn.test/root.ts");
+        assert_eq!(
+            resolve_url("https://cdn.test/a/b/", "/root.ts"),
+            "https://cdn.test/root.ts"
+        );
         assert_eq!(
             resolve_url("https://cdn.test/a/b/", "https://other.test/x.ts"),
             "https://other.test/x.ts"
