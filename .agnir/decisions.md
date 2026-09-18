@@ -21,3 +21,10 @@
 - 授权与目标：Principal 明确选择迁移到最新稳定版 `v1.0.0`（iorLab/agnir tag `v1.0.0`，revision `6d16dcfd17b8e9f22fd25804e22b9f8a516d06c3`）。
 - 兼容线声明改为 Core `1.0` / `repository-filesystem/1.0`；新增 `continuity.lineage: "urn:cineharbor:lineage:cineharbor-addon-sdk"`（0.1 唯一隐式连续线的显式初始 lineage）。
 - 保留：`project.identity`、memory locators 与 durable memory 内容、policy、`agnir/repository` 扩展、README/`AGENTS.md` 无关内容。
+
+## 2026-09-19 — Agnir 兼容操作升级到 v1.0.2
+
+- 目标：已发布稳定版 `v1.0.2`（source `iorLab/agnir`，immutable revision `b5626394ec40a5cb7a28c01892acde07cc0adc8e`）。
+- 分类：compatible operational upgrade；Core/Profile 仍为 `1.0` / `repository-filesystem/1.0`，保留 `project.identity`、`continuity.lineage`、memory locators/content、policy 与无关 Project 内容。
+- 激活 packaging：新增 canonical 根 `AGNIR.md`；`AGENTS.md` 改为直达 `AGNIR.md` 的 locator；README `## Agnir Project Instructions` 收敛为兼容 locator。
+- provenance：`AGNIR.yaml > extensions > agnir/operations` 更新为 release `1.0.2` / applied revision `b5626394ec40a5cb7a28c01892acde07cc0adc8e`。
