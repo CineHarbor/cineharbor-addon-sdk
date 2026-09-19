@@ -58,10 +58,10 @@ impl ProxyParts {
         if let Ok(value) = HeaderValue::from_str(ua) {
             headers.insert(header::USER_AGENT, value);
         }
-        if let Some(referer) = source_headers.and_then(|s| s.referer.as_deref()) {
-            if let Ok(value) = HeaderValue::from_str(referer) {
-                headers.insert(header::REFERER, value);
-            }
+        if let Some(referer) = source_headers.and_then(|s| s.referer.as_deref())
+            && let Ok(value) = HeaderValue::from_str(referer)
+        {
+            headers.insert(header::REFERER, value);
         }
         headers
     }
@@ -114,7 +114,7 @@ async fn vod_m3u8(
             };
             manifest_response(body)
         }
-        Err(response) => response,
+        Err(response) => *response,
     }
 }
 
@@ -144,7 +144,7 @@ async fn live_m3u8(
                 rewrite_live_manifest_content(&text, &url, &source, &parts.public_base_url, false);
             manifest_response(rewritten)
         }
-        Err(response) => response,
+        Err(response) => *response,
     }
 }
 
@@ -246,24 +246,28 @@ fn cors_headers(headers: &mut HeaderMap) {
     );
 }
 
-async fn fetch_manifest(parts: &ProxyParts, source: &str, url: &str) -> Result<String, Response> {
+async fn fetch_manifest(
+    parts: &ProxyParts,
+    source: &str,
+    url: &str,
+) -> Result<String, Box<Response>> {
     let response = parts
         .client
         .get(url)
         .headers(parts.headers_for(source))
         .send()
         .await
-        .map_err(|error| bad_gateway(format!("upstream fetch failed: {error}")))?;
+        .map_err(|error| Box::new(bad_gateway(format!("upstream fetch failed: {error}"))))?;
     if !response.status().is_success() {
-        return Err(bad_gateway(format!(
+        return Err(Box::new(bad_gateway(format!(
             "upstream status: {}",
             response.status()
-        )));
+        ))));
     }
     response
         .text()
         .await
-        .map_err(|error| bad_gateway(format!("upstream body read failed: {error}")))
+        .map_err(|error| Box::new(bad_gateway(format!("upstream body read failed: {error}"))))
 }
 
 async fn forward_bytes(parts: &ProxyParts, source: &str, url: &str) -> Response {

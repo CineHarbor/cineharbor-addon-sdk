@@ -129,10 +129,10 @@ fn build_downstream_headers(
         headers.insert(reqwest::header::USER_AGENT, value);
     }
 
-    if let Some(referer) = api_site.referer.as_deref() {
-        if let Ok(value) = reqwest::header::HeaderValue::from_str(referer) {
-            headers.insert(reqwest::header::REFERER, value);
-        }
+    if let Some(referer) = api_site.referer.as_deref()
+        && let Ok(value) = reqwest::header::HeaderValue::from_str(referer)
+    {
+        headers.insert(reqwest::header::REFERER, value);
     }
 
     headers
@@ -352,13 +352,13 @@ impl Addon for VodAddon {
             .take(SEARCH_PAGE_SIZE)
             .map(|result| {
                 let ty = content_type_for(&result);
-                let preview = MetaPreview {
+
+                MetaPreview {
                     poster: (!result.poster.is_empty()).then_some(result.poster),
                     year: (result.year != "unknown").then_some(result.year),
                     description: result.desc,
                     ..MetaPreview::new(vod_id(&result.source, &result.id), ty, &result.title)
-                };
-                preview
+                }
             })
             .collect();
         CatalogResponse { metas }
@@ -427,7 +427,7 @@ impl Addon for VodAddon {
         let streams = detail
             .episodes
             .into_iter()
-            .zip(detail.episodes_titles.into_iter())
+            .zip(detail.episodes_titles)
             .enumerate()
             .map(|(index, (url, title))| Stream {
                 name: Some(title),

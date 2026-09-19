@@ -135,16 +135,17 @@ pub fn filter_m3u8(content: &str, config: &AdFilterConfig) -> FilterResult {
             current_inf = Some((parse_extinf_duration(line), index));
             continue;
         }
-        if let Some((duration, line_index)) = current_inf.take() {
-            if !line.is_empty() && !line.starts_with('#') {
-                segments.push(ParsedSegment {
-                    duration,
-                    discontinuity_group: current_group,
-                    line_index,
-                    url_line_index: index,
-                    is_ad_domain: is_ad_domain(line),
-                });
-            }
+        if let Some((duration, line_index)) = current_inf.take()
+            && !line.is_empty()
+            && !line.starts_with('#')
+        {
+            segments.push(ParsedSegment {
+                duration,
+                discontinuity_group: current_group,
+                line_index,
+                url_line_index: index,
+                is_ad_domain: is_ad_domain(line),
+            });
         }
     }
 

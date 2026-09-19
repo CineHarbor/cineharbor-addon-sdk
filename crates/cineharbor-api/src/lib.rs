@@ -211,13 +211,13 @@ pub fn parse_detail_payload(payload: &Value, api_site: &ApiSite, id: &str) -> Op
         value_to_string(video_detail.get("vod_play_url")).as_deref(),
     );
 
-    if episodes.is_empty() {
-        if let Some(content) = value_to_string(video_detail.get("vod_content")) {
-            episodes = extract_m3u8_matches(&content);
-            episode_titles = (1..=episodes.len())
-                .map(|index| index.to_string())
-                .collect();
-        }
+    if episodes.is_empty()
+        && let Some(content) = value_to_string(video_detail.get("vod_content"))
+    {
+        episodes = extract_m3u8_matches(&content);
+        episode_titles = (1..=episodes.len())
+            .map(|index| index.to_string())
+            .collect();
     }
 
     Some(SearchResult {
@@ -239,11 +239,10 @@ pub fn parse_detail_payload(payload: &Value, api_site: &ApiSite, id: &str) -> Op
 /// 从 detail HTML 页抽取剧集/标题/描述/海报/年份（ffzy/feifan 走专用 m3u8 规则）。
 pub fn parse_custom_detail_html(html: &str, api_site: &ApiSite, id: &str) -> SearchResult {
     let mut matches = if matches!(api_site.key.as_str(), "ffzy" | "feifan") {
-        let special = special_ffzy_m3u8_regex()
+        special_ffzy_m3u8_regex()
             .captures_iter(html)
             .filter_map(|capture| capture.get(1).map(|item| item.as_str().to_string()))
-            .collect::<Vec<_>>();
-        special
+            .collect::<Vec<_>>()
     } else {
         Vec::new()
     };

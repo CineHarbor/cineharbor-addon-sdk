@@ -28,3 +28,7 @@
 - 分类：compatible operational upgrade；Core/Profile 仍为 `1.0` / `repository-filesystem/1.0`，保留 `project.identity`、`continuity.lineage`、memory locators/content、policy 与无关 Project 内容。
 - 激活 packaging：新增 canonical 根 `AGNIR.md`；`AGENTS.md` 改为直达 `AGNIR.md` 的 locator；README `## Agnir Project Instructions` 收敛为兼容 locator。
 - provenance：`AGNIR.yaml > extensions > agnir/operations` 更新为 release `1.0.2` / applied revision `b5626394ec40a5cb7a28c01892acde07cc0adc8e`。
+
+## 2026-09-19 — 1.0.0 strict quality gates
+
+Keep strict all-target/all-feature clippy without blanket allows. Fix source structure and retain all tests. Retire the one-time formatting writer; require a second clean CI run after each successful unchanged-main push, without recursive dispatch. Local fixture tests and successful compilation are not substitutes for browser, production or real signed updater acceptance. Identity/lineage and the no-public-release boundary remain unchanged.
