@@ -469,10 +469,10 @@ pub fn resolve_url(base_url: &str, relative_path: &str) -> String {
         return relative_path.to_string();
     }
 
-    if relative_path.starts_with("//") {
-        if let Ok(base_url) = Url::parse(base_url) {
-            return format!("{}{}", base_url.scheme(), relative_path);
-        }
+    if relative_path.starts_with("//")
+        && let Ok(base_url) = Url::parse(base_url)
+    {
+        return format!("{}{}", base_url.scheme(), relative_path);
     }
 
     match Url::parse(base_url)
@@ -486,21 +486,21 @@ pub fn resolve_url(base_url: &str, relative_path: &str) -> String {
 
 fn fallback_resolve_url(base_url: &str, relative_path: &str) -> String {
     let mut base = base_url.to_string();
-    if !base.ends_with('/') {
-        if let Some(last_slash_index) = base.rfind('/') {
-            base.truncate(last_slash_index + 1);
-        }
+    if !base.ends_with('/')
+        && let Some(last_slash_index) = base.rfind('/')
+    {
+        base.truncate(last_slash_index + 1);
     }
 
-    if relative_path.starts_with('/') {
-        if let Ok(url) = Url::parse(&base) {
-            return format!(
-                "{}://{}{}",
-                url.scheme(),
-                url.host_str().unwrap_or(""),
-                relative_path
-            );
-        }
+    if relative_path.starts_with('/')
+        && let Ok(url) = Url::parse(&base)
+    {
+        return format!(
+            "{}://{}{}",
+            url.scheme(),
+            url.host_str().unwrap_or(""),
+            relative_path
+        );
     }
 
     if relative_path.starts_with("../") {

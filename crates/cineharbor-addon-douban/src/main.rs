@@ -19,7 +19,7 @@ async fn main() {
         .map(|base| base.trim().to_string())
         .filter(|base| !base.is_empty())
         .map(DoubanAddon::with_search_base_url)
-        .unwrap_or_else(DoubanAddon::new);
+        .unwrap_or_default();
     let app = router(Arc::new(addon));
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
         .await

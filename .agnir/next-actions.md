@@ -1,6 +1,6 @@
 # cineharbor-addon-sdk Next Actions
 
-1. Observe formatting normalization and every independent CI lane. Repair actual compile/test/clippy failures rather than skipping them; obtain two successful executions for final main and record source/dependency revisions.
+1. Verify the published lint-fix revision through every independent CI lane and its automatic second clean main run. Local strict clippy and native tests passed; only observed remote runs count as current main evidence.
 2. Lock and test protocol compatibility for manifest/catalog/meta/streams, paging, ratings, error semantics, CORS and media routes. Preserve native/WASM client compatibility.
 3. Verify media token enforcement, HLS segment/key rewriting, ad filtering, SSRF/redirect boundaries and non-open-proxy deployment defaults with negative tests.
 4. Complete remote addon parity required for retiring remaining Web/local-service duplicate content paths; update pinned cross-repository revisions deliberately.

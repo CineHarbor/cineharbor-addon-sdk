@@ -7,6 +7,7 @@
 //!   `{"sources":[{"key","name","source","ua?","referer?"}]}`，`source` 为 http(s) URL 时远程
 //!   拉取 M3U8，否则按本地文件路径读取。
 //! - 单源（向后兼容）：`CINEHARBOR_LIVE_SOURCE` = URL 或本地文件（source key=m3u8）。
+//!
 //! 均未设置或加载失败则回退内置演示列表。
 //! stream url 经 `/media/live/{m3u8,segment,key}` 转链（`cineharbor-source=<source key>`）。
 
@@ -55,53 +56,52 @@ async fn load_playlist_text(source: &str) -> Option<String> {
 }
 
 async fn build_addon() -> (LiveAddon, HashMap<String, SourceHeaders>) {
-    if let Ok(path) = std::env::var("CINEHARBOR_LIVE_SOURCES") {
-        if let Ok(json) = std::fs::read_to_string(&path) {
-            if let Ok(config) = serde_json::from_str::<LiveSourcesConfig>(&json) {
-                let mut sources = Vec::new();
-                for sc in config.sources {
-                    let Some(text) = load_playlist_text(&sc.source).await else {
-                        continue;
-                    };
-                    sources.push(LiveSource {
-                        key: sc.key,
-                        name: sc.name,
-                        ua: sc.ua,
-                        referer: sc.referer,
-                        channels: parse_m3u8(&text),
-                    });
-                }
-                if !sources.is_empty() {
-                    let headers = sources
-                        .iter()
-                        .map(|source| {
-                            (
-                                source.key.clone(),
-                                SourceHeaders {
-                                    ua: source.ua.clone(),
-                                    referer: source.referer.clone(),
-                                    disable_ad_filter: false,
-                                },
-                            )
-                        })
-                        .collect::<HashMap<_, _>>();
-                    return (LiveAddon::from_sources("live", sources), headers);
-                }
-            }
+    if let Ok(path) = std::env::var("CINEHARBOR_LIVE_SOURCES")
+        && let Ok(json) = std::fs::read_to_string(&path)
+        && let Ok(config) = serde_json::from_str::<LiveSourcesConfig>(&json)
+    {
+        let mut sources = Vec::new();
+        for sc in config.sources {
+            let Some(text) = load_playlist_text(&sc.source).await else {
+                continue;
+            };
+            sources.push(LiveSource {
+                key: sc.key,
+                name: sc.name,
+                ua: sc.ua,
+                referer: sc.referer,
+                channels: parse_m3u8(&text),
+            });
+        }
+        if !sources.is_empty() {
+            let headers = sources
+                .iter()
+                .map(|source| {
+                    (
+                        source.key.clone(),
+                        SourceHeaders {
+                            ua: source.ua.clone(),
+                            referer: source.referer.clone(),
+                            disable_ad_filter: false,
+                        },
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            return (LiveAddon::from_sources("live", sources), headers);
         }
     }
 
-    if let Ok(source) = std::env::var("CINEHARBOR_LIVE_SOURCE") {
-        if let Some(text) = load_playlist_text(&source).await {
-            let src = LiveSource {
-                key: "m3u8".into(),
-                name: "live".into(),
-                ua: None,
-                referer: None,
-                channels: parse_m3u8(&text),
-            };
-            return (LiveAddon::from_sources("live", vec![src]), HashMap::new());
-        }
+    if let Ok(source) = std::env::var("CINEHARBOR_LIVE_SOURCE")
+        && let Some(text) = load_playlist_text(&source).await
+    {
+        let src = LiveSource {
+            key: "m3u8".into(),
+            name: "live".into(),
+            ua: None,
+            referer: None,
+            channels: parse_m3u8(&text),
+        };
+        return (LiveAddon::from_sources("live", vec![src]), HashMap::new());
     }
 
     (

@@ -28,8 +28,13 @@ jobs:
           persist-credentials: false
       - name: Checkout pinned sibling dependency
         run: python3 scripts/ci-checkout.py
-      - name: Select pinned toolchain
-        run: rustup show active-toolchain
+      - name: Install pinned toolchain explicitly
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain=$(python3 -c 'import tomllib; print(tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])')
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+          rustup show active-toolchain
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.gate }}
@@ -45,3 +50,26 @@ jobs:
             clippy) cargo clippy --workspace --all-targets --all-features --locked -- -D warnings ;;
             *) echo 'Unknown gate' >&2; exit 1 ;;
           esac
+
+  repeat_verified_main:
+    name: Repeat successful main verification once
+    needs: rust
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch a second clean verification of unchanged main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo 'Main advanced; the newer revision owns its repeat verification.'
+            exit 0
+          fi
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main
