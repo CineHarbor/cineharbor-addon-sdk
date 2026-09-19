@@ -1,10 +1,9 @@
 # cineharbor-addon-sdk Next Actions
 
-1. Run the Bangumi upstream-injection change through the complete PR CI matrix; after merge, require two complete successful CI runs on the exact new main SHA before using it as release evidence.
-2. Pin the verified Addon SDK SHA into Web and add deterministic real-browser Bangumi plus product-path acceptance using isolated fixtures.
-3. Preserve protocol compatibility for manifest/catalog/meta/streams, paging, ratings, error semantics, CORS and media routes; retain native/WASM client compatibility.
-4. Verify media token enforcement, HLS segment/key rewriting, ad filtering, SSRF/redirect boundaries and non-open-proxy deployment defaults with negative tests.
-5. Produce and execute documented production deployment configuration for Douban/Bangumi/Live/VOD/media, including real health/CORS/auth/timeout smoke. Unavailable credentials or production access are explicit external blockers, not passes.
-6. Align 1.0.0 release metadata, security/license inventory and evidence-bound Agnir state. Public release is authorized by the Principal only after all hard gates genuinely pass; do not weaken or bypass a failed gate.
+1. Run the 1.0.0 version/Core-pin branch through the complete PR matrix. After merge, require two complete successful CI runs on the exact new main SHA.
+2. Publish the verified SDK SHA to Web/Desktop dependency pins; downstream revisions must not pin an unverified candidate.
+3. Preserve protocol compatibility and complete media token/SSRF/redirect/open-proxy negative review.
+4. Execute documented production health/CORS/auth/timeout smoke for deployed Douban/Bangumi/Live/VOD/media services. Missing production credentials/access remain explicit external blockers.
+5. Reconcile security/license evidence and the seven-repository release matrix before public publication.
 
-Continue autonomously under the Principal's release authorization. Retain the selected Project identity/lineage and historical decision/evidence records.
+Continue autonomously under the Principal's 2026-09-19 release authorization.

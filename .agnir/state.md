@@ -1,25 +1,25 @@
 # cineharbor-addon-sdk Current State
 
-Target: CineHarbor **1.0.0**, release work in progress; **RELEASE_READY = false**. Current scope and acceptance rules are in `CineHarbor/cineharbor/docs/releases/1.0.0/`.
+Target: CineHarbor **1.0.0 public release**, with hard release gates enforced. **RELEASE_READY = false; PUBLIC_RELEASE_EXECUTED = false.** Scope and acceptance rules live in `CineHarbor/cineharbor/docs/releases/1.0.0/`.
 
-## Repository boundaries
+## Repository boundary
 
-This workspace owns the Stremio-compatible protocol, SDK/router/client, standalone Douban, Bangumi, Live and VOD addons, the shared content API parser and media proxy. Remote addons are the ADR-0006 content data plane; pure state/native/WASM bridges remain in cineharbor-core. Existing protocol fixtures and addon/media tests must remain enforced during release work.
+This workspace owns the Stremio-compatible protocol, SDK/router/client, standalone Douban, Bangumi, Live and VOD addons, shared content API parser and media proxy. Remote addons are the ADR-0006 content data plane.
 
-VOD depends on cineharbor-api, which consumes pure-core model types through a sibling Cargo path. `ci/dependency.json` pins the required Core revision and `scripts/ci-checkout.py` materializes the sibling layout. Rust is pinned to 1.98.1. Independent fmt/check/test/clippy lanes prevent one failed lane from hiding another. A successful main push dispatches exactly one second clean CI run; manual runs never recursively dispatch.
+## Verified inputs
 
-## Validation status
+Main `e5f7a3a289ceb978d559910b5bf9f176809ada04` passed the complete SDK CI matrix twice: push run `35446032830` and clean workflow-dispatch run `35446059543`. It includes deterministic Bangumi upstream injection while preserving bgm.tv as the production default.
 
-Main `982d9148b30274e94ec83fe40f32f83a890cfa70` passed the complete CI matrix twice (push run `35425301949`, workflow-dispatch run `35425324050`). Those results establish the previous baseline only. Any source change below requires fresh CI and, after merge, two successful runs on the new immutable main SHA.
+Core release source `d51414bba4964dd7cee02780e41c73e35190ce76` has separately passed its final main matrix twice.
 
-The VOD catalog contract fix remains in place: movie/series searches filter the requested type before pagination and reject undeclared catalog ids/types. Core is pinned to `e2bb2c6cab5cf620ab4eef34e05b254b26dc3139`.
+## 1.0.0 version alignment
 
-## Bangumi deterministic acceptance checkpoint
+The release branch changes the SDK workspace package version to `1.0.0`, pins Core to verified `d51414bba4964dd7cee02780e41c73e35190ce76`, updates all eight owned workspace lock entries plus the pinned Core path entry to `1.0.0`, and aligns standalone Bangumi, Douban, Live and VOD manifest versions to `1.0.0`.
 
-The Bangumi addon previously hard-coded `https://api.bgm.tv`, which prevented deterministic browser/addon acceptance against an isolated fixture. The release branch now adds `CINEHARBOR_BANGUMI_BASE_URL` as an upstream-base override while preserving bgm.tv as the production default. `BangumiAddon::with_base_url` normalizes the injected base and has an owned unit regression. This is testability/configuration only; no release gate is claimed passed by this change. PR CI, two post-merge main runs, Web real-browser Bangumi coverage, media security review, production deployment and final version alignment remain gates.
+Protocol examples/tests already advertise `1.0.0`. Complete PR CI and two post-merge main runs are required before Web/Desktop pins move.
 
-See `.agnir/evidence/2026-09-19-bangumi-deterministic-upstream.md`.
+Media authorization/SSRF, production deployment smoke and final security/license review remain separate release obligations.
 
-## Continuity
+See `.agnir/evidence/2026-09-19-version-1.0.0.md`.
 
-Project `urn:cineharbor:project:cineharbor-addon-sdk`; lineage `urn:cineharbor:lineage:cineharbor-addon-sdk`. Agnir Core/Profile 1.0 / repository-filesystem/1.0, operations v1.0.2 at `b5626394ec40a5cb7a28c01892acde07cc0adc8e`, remain unchanged. License baseline: CC-BY-NC-SA-4.0. Historical initialization is complete.
+Project `urn:cineharbor:project:cineharbor-addon-sdk`; lineage `urn:cineharbor:lineage:cineharbor-addon-sdk`. Agnir Core/Profile 1.0 / repository-filesystem/1.0 and operations v1.0.2 remain unchanged. License: CC-BY-NC-SA-4.0.

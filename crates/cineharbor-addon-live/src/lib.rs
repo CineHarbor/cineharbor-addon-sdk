@@ -134,7 +134,7 @@ impl Addon for LiveAddon {
     async fn manifest(&self) -> Manifest {
         Manifest {
             id: "community.live".into(),
-            version: "0.2.0".into(),
+            version: "1.0.0".into(),
             name: self.addon_name.clone(),
             description: Some("多源直播频道（M3U8）addon".into()),
             resources: vec![Resource::Catalog, Resource::Meta, Resource::Stream],

@@ -75,7 +75,7 @@ impl Addon for BangumiAddon {
     async fn manifest(&self) -> Manifest {
         Manifest {
             id: "community.bangumi".into(),
-            version: "0.1.0".into(),
+            version: "1.0.0".into(),
             name: "Bangumi".into(),
             description: Some("收录 bangumi.tv 动画条目的元数据参考 addon".into()),
             resources: vec![Resource::Catalog, Resource::Meta],
