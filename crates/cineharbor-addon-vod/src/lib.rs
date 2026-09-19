@@ -100,7 +100,11 @@ fn split_vod_id(id: &str) -> Option<(String, String)> {
 }
 
 fn content_type_for(result: &SearchResult) -> ContentType {
-    let type_name = result.type_name.as_deref().unwrap_or_default();
+    let type_name = result
+        .type_name
+        .as_deref()
+        .unwrap_or_default()
+        .to_lowercase();
     if type_name.contains('剧') || type_name.contains("series") || type_name.contains("tv") {
         ContentType::Series
     } else {
@@ -335,6 +339,9 @@ impl Addon for VodAddon {
     }
 
     async fn catalog(&self, req: CatalogRequest) -> CatalogResponse {
+        if req.id != "search" || !matches!(req.ty, ContentType::Movie | ContentType::Series) {
+            return CatalogResponse::default();
+        }
         let Some((name, query)) = req.extra else {
             return CatalogResponse::default();
         };
@@ -348,6 +355,9 @@ impl Addon for VodAddon {
         let skip = req.skip.unwrap_or(0) as usize;
         let metas = results
             .into_iter()
+            // Filter before paging: each declared catalog has its own offset.
+            // Otherwise clients requesting movie + series receive duplicates.
+            .filter(|result| content_type_for(result) == req.ty)
             .skip(skip)
             .take(SEARCH_PAGE_SIZE)
             .map(|result| {
