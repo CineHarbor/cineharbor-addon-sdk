@@ -12,7 +12,7 @@ use cineharbor_addon_protocol::{
 use cineharbor_addon_sdk::addon::{Addon, CatalogRequest};
 use serde::Deserialize;
 
-const BASE: &str = "https://api.bgm.tv";
+const DEFAULT_BASE_URL: &str = "https://api.bgm.tv";
 const ID_PREFIX: &str = "bangumi:";
 
 #[derive(Debug, thiserror::Error)]
@@ -23,6 +23,7 @@ pub enum BangumiError {
 
 pub struct BangumiAddon {
     http: reqwest::Client,
+    base_url: String,
 }
 
 impl Default for BangumiAddon {
@@ -33,18 +34,33 @@ impl Default for BangumiAddon {
 
 impl BangumiAddon {
     pub fn new() -> Self {
+        let base_url = std::env::var("CINEHARBOR_BANGUMI_BASE_URL")
+            .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+        Self::with_base_url(base_url)
+    }
+
+    pub fn with_base_url(base_url: impl Into<String>) -> Self {
+        let configured = base_url.into();
+        let trimmed = configured.trim().trim_end_matches('/');
+        let base_url = if trimmed.is_empty() {
+            DEFAULT_BASE_URL.to_string()
+        } else {
+            trimmed.to_string()
+        };
+
         Self {
             http: reqwest::ClientBuilder::new()
                 .user_agent("CineHarborAddon/0.1 (https://github.com/CineHarbor)")
                 .build()
                 .expect("build http client"),
+            base_url,
         }
     }
 
     async fn fetch(&self, path: &str) -> Result<String, BangumiError> {
         let body = self
             .http
-            .get(format!("{BASE}{path}"))
+            .get(format!("{}{path}", self.base_url))
             .send()
             .await?
             .error_for_status()?
@@ -263,6 +279,12 @@ mod tests {
       "summary": "魔法使芙莉莲的旅途", "date": "2023-09-29",
       "images": { "large": "https://lain.bgm.tv/pic/cover/l/frieren.jpg" }
     }"#;
+
+    #[test]
+    fn normalizes_configured_upstream_base_url() {
+        let addon = BangumiAddon::with_base_url(" http://127.0.0.1:49174/ ");
+        assert_eq!(addon.base_url, "http://127.0.0.1:49174");
+    }
 
     #[test]
     fn maps_calendar() {
