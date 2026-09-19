@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-bangumi"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -166,7 +166,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-douban"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-live"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -199,7 +199,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-protocol"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-sdk"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-addon-vod"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cineharbor-core",
  "html-escape",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "cineharbor-addon-protocol",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "cineharbor-media"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "regex",

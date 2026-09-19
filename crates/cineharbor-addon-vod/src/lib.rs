@@ -307,7 +307,7 @@ impl Addon for VodAddon {
     async fn manifest(&self) -> Manifest {
         Manifest {
             id: "cineharbor.vod".into(),
-            version: "0.1.0".into(),
+            version: "1.0.0".into(),
             name: "CineHarbor Vod".into(),
             description: Some(
                 "CustomAPI 视频站聚合 addon（catalog/meta/stream，standalone）".into(),

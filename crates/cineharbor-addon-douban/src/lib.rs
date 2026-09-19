@@ -258,7 +258,7 @@ impl Addon for DoubanAddon {
     async fn manifest(&self) -> Manifest {
         Manifest {
             id: "cineharbor.douban".into(),
-            version: "0.1.0".into(),
+            version: "1.0.0".into(),
             name: "CineHarbor Douban".into(),
             description: Some("豆瓣检索 addon（catalog/search，standalone）".into()),
             resources: vec![Resource::Catalog],
