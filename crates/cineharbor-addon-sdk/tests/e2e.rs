@@ -105,7 +105,10 @@ async fn manifest_serves_cors_headers() {
 
     // 预检 OPTIONS：204 + allow-origin。
     let preflight = reqwest::Client::new()
-        .request(reqwest::Method::OPTIONS, format!("http://{addr}/manifest.json"))
+        .request(
+            reqwest::Method::OPTIONS,
+            format!("http://{addr}/manifest.json"),
+        )
         .header("Origin", origin)
         .header("Access-Control-Request-Method", "GET")
         .send()

@@ -78,7 +78,9 @@ pub fn clean_html_tags(value: &str) -> String {
     if value.trim().is_empty() {
         return String::new();
     }
-    let cleaned = html_tag_regex().replace_all(value, "\n").replace('\r', "\n");
+    let cleaned = html_tag_regex()
+        .replace_all(value, "\n")
+        .replace('\r', "\n");
     let lines = cleaned
         .split('\n')
         .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
@@ -137,7 +139,10 @@ pub fn looks_like_manifest_url(url: &str) -> bool {
 
 // —— URL 构造 ——
 
-pub fn build_collection_api_url(api_base_url: &str, params: &[(&str, &str)]) -> Result<String, String> {
+pub fn build_collection_api_url(
+    api_base_url: &str,
+    params: &[(&str, &str)],
+) -> Result<String, String> {
     let api_base_url = api_base_url.trim();
     url::Url::parse(api_base_url)
         .map_err(|error| format!("invalid api url: {api_base_url}: {error}"))?;
@@ -209,7 +214,9 @@ pub fn parse_detail_payload(payload: &Value, api_site: &ApiSite, id: &str) -> Op
     if episodes.is_empty() {
         if let Some(content) = value_to_string(video_detail.get("vod_content")) {
             episodes = extract_m3u8_matches(&content);
-            episode_titles = (1..=episodes.len()).map(|index| index.to_string()).collect();
+            episode_titles = (1..=episodes.len())
+                .map(|index| index.to_string())
+                .collect();
         }
     }
 
@@ -288,7 +295,9 @@ pub fn parse_custom_detail_html(html: &str, api_site: &ApiSite, id: &str) -> Sea
         id: id.to_string(),
         title,
         poster,
-        episodes_titles: (1..=deduped_matches.len()).map(|index| index.to_string()).collect(),
+        episodes_titles: (1..=deduped_matches.len())
+            .map(|index| index.to_string())
+            .collect(),
         episodes: deduped_matches,
         source: api_site.key.clone(),
         source_name: api_site.name.clone(),
@@ -377,7 +386,8 @@ fn title_regex() -> &'static Regex {
 fn detail_desc_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r#"<div[^>]*class=["']sketch["'][^>]*>([\s\S]*?)</div>"#).expect("valid desc regex")
+        Regex::new(r#"<div[^>]*class=["']sketch["'][^>]*>([\s\S]*?)</div>"#)
+            .expect("valid desc regex")
     })
 }
 
@@ -423,7 +433,10 @@ mod tests {
         let (episodes, titles) = extract_episodes_from_play_url(Some(
             "第01集$http://e.test/1.m3u8#第02集$http://e.test/2.m3u8",
         ));
-        assert_eq!(episodes, vec!["http://e.test/1.m3u8", "http://e.test/2.m3u8"]);
+        assert_eq!(
+            episodes,
+            vec!["http://e.test/1.m3u8", "http://e.test/2.m3u8"]
+        );
         assert_eq!(titles, vec!["第01集", "第02集"]);
     }
 
@@ -495,16 +508,14 @@ mod tests {
             "http://api.test/provide/vod/"
         );
         assert_eq!(
-            build_collection_api_url("http://api.test/provide/vod/", &[("ac", "videolist")]).unwrap(),
+            build_collection_api_url("http://api.test/provide/vod/", &[("ac", "videolist")])
+                .unwrap(),
             "http://api.test/provide/vod/?ac=videolist"
         );
         let encoded = build_collection_api_url("http://api.test/x", &[("wd", "矩阵")]).unwrap();
         assert!(encoded.contains("wd=%E7%9F%A9%E9%98%B5"), "{encoded}");
-        let with_query = build_collection_api_url(
-            "http://api.test/x?fixed=1",
-            &[("ac", "videolist")],
-        )
-        .unwrap();
+        let with_query =
+            build_collection_api_url("http://api.test/x?fixed=1", &[("ac", "videolist")]).unwrap();
         assert_eq!(with_query, "http://api.test/x?fixed=1&ac=videolist");
     }
 }

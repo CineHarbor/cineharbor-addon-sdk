@@ -71,7 +71,11 @@ impl DoubanAddon {
     }
 
     /// 豆瓣搜索：返回经主体过滤 + 映射后的条目。
-    pub async fn search(&self, query: &str, start: usize) -> Result<Vec<DoubanPreview>, DoubanAddonError> {
+    pub async fn search(
+        &self,
+        query: &str,
+        start: usize,
+    ) -> Result<Vec<DoubanPreview>, DoubanAddonError> {
         let url = build_search_url(&self.search_base_url, query, start);
         let html = self
             .http
@@ -163,7 +167,8 @@ fn douban_search_data_regex() -> &'static regex::Regex {
 fn douban_search_year_suffix_regex() -> &'static regex::Regex {
     static REGEX: OnceLock<regex::Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        regex::Regex::new(r#"\s*[（(]\d{4}[)）]\s*$"#).expect("valid douban search year suffix regex")
+        regex::Regex::new(r#"\s*[（(]\d{4}[)）]\s*$"#)
+            .expect("valid douban search year suffix regex")
     })
 }
 

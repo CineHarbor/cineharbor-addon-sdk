@@ -311,9 +311,7 @@ http://example.test/2.m3u8
         addon.set_public_base_url(Some("http://addon".into()));
         let s = addon.streams(ContentType::Tv, "live:default:0").await;
         let url = s.streams[0].url.as_deref().unwrap();
-        assert!(
-            url.starts_with("http://addon/media/live/m3u8?cineharbor-source=default&url=")
-        );
+        assert!(url.starts_with("http://addon/media/live/m3u8?cineharbor-source=default&url="));
         assert!(url.contains("http%3A%2F%2Fexample.test%2F1.m3u8"));
     }
 }

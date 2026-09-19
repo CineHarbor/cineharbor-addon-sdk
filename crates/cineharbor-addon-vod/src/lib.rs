@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use cineharbor_addon_protocol::{
-    Catalog, CatalogResponse, ContentType, Manifest, MetaDetail, MetaResponse, MetaPreview,
+    Catalog, CatalogResponse, ContentType, Manifest, MetaDetail, MetaPreview, MetaResponse,
     Resource, Stream, StreamsResponse, Video,
 };
 use cineharbor_addon_sdk::addon::{Addon, CatalogRequest};
@@ -117,7 +117,10 @@ fn stream_url(public_base: Option<&str>, source: &str, url: &str) -> String {
 
 // —— 网络层（reqwest，与 local-service 对齐）——
 
-fn build_downstream_headers(api_site: &ApiSite, default_user_agent: &str) -> reqwest::header::HeaderMap {
+fn build_downstream_headers(
+    api_site: &ApiSite,
+    default_user_agent: &str,
+) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
 
     if let Ok(value) =
@@ -141,8 +144,9 @@ pub async fn search_site(
     query: &str,
     max_search_pages: usize,
 ) -> Result<Vec<SearchResult>, VodError> {
-    let first_page_url = api::build_collection_api_url(&api_site.api, &[("ac", "videolist"), ("wd", query)])
-        .map_err(VodError::Other)?;
+    let first_page_url =
+        api::build_collection_api_url(&api_site.api, &[("ac", "videolist"), ("wd", query)])
+            .map_err(VodError::Other)?;
     let first_response = client
         .get(&first_page_url)
         .headers(build_downstream_headers(api_site, DEFAULT_WEB_UA))
@@ -238,8 +242,9 @@ async fn fetch_json_detail(
     api_site: &ApiSite,
     id: &str,
 ) -> Result<SearchResult, VodError> {
-    let detail_url = api::build_collection_api_url(&api_site.api, &[("ac", "videolist"), ("ids", id)])
-        .map_err(VodError::Other)?;
+    let detail_url =
+        api::build_collection_api_url(&api_site.api, &[("ac", "videolist"), ("ids", id)])
+            .map_err(VodError::Other)?;
     let response = client
         .get(detail_url)
         .headers(build_downstream_headers(api_site, DEFAULT_WEB_UA))
@@ -248,7 +253,10 @@ async fn fetch_json_detail(
         .await?;
 
     if !response.status().is_success() {
-        return Err(VodError::Other(format!("详情请求失败: {}", response.status())));
+        return Err(VodError::Other(format!(
+            "详情请求失败: {}",
+            response.status()
+        )));
     }
 
     let payload = parse_json(response).await?;
@@ -278,7 +286,10 @@ async fn fetch_custom_detail(
         .await?;
 
     if !response.status().is_success() {
-        return Err(VodError::Other(format!("详情页请求失败: {}", response.status())));
+        return Err(VodError::Other(format!(
+            "详情页请求失败: {}",
+            response.status()
+        )));
     }
 
     let html = response.text().await?;
@@ -294,7 +305,9 @@ impl Addon for VodAddon {
             id: "cineharbor.vod".into(),
             version: "0.1.0".into(),
             name: "CineHarbor Vod".into(),
-            description: Some("CustomAPI 视频站聚合 addon（catalog/meta/stream，standalone）".into()),
+            description: Some(
+                "CustomAPI 视频站聚合 addon（catalog/meta/stream，standalone）".into(),
+            ),
             resources: vec![Resource::Catalog, Resource::Meta, Resource::Stream],
             types: vec![ContentType::Movie, ContentType::Series],
             catalogs: vec![
@@ -358,7 +371,9 @@ impl Addon for VodAddon {
             .sites
             .iter()
             .find(|site| site.key == source && !site.disabled)?;
-        let detail = fetch_content_detail(&self.http, api_site, &vid).await.ok()?;
+        let detail = fetch_content_detail(&self.http, api_site, &vid)
+            .await
+            .ok()?;
         // 类型由抓取结果 type_name 自证（详情请求不携带 movie/series 语义），而非信任路径 ty。
         let actual_ty = content_type_for(&detail);
 
@@ -460,8 +475,14 @@ mod tests {
 
     #[test]
     fn infers_content_type() {
-        assert_eq!(content_type_for(&result_with_type("电影")), ContentType::Movie);
-        assert_eq!(content_type_for(&result_with_type("电视剧")), ContentType::Series);
+        assert_eq!(
+            content_type_for(&result_with_type("电影")),
+            ContentType::Movie
+        );
+        assert_eq!(
+            content_type_for(&result_with_type("电视剧")),
+            ContentType::Series
+        );
     }
 
     #[test]
@@ -491,7 +512,10 @@ mod tests {
             r#"{"sites":[{"key":"a","name":"A","api":"http://a/x"},{"key":"b","name":"B","api":"http://b/x","disabled":true}]}"#,
         )
         .unwrap();
-        let enabled: Vec<_> = config.enabled_sites().map(|site| site.key.as_str()).collect();
+        let enabled: Vec<_> = config
+            .enabled_sites()
+            .map(|site| site.key.as_str())
+            .collect();
         assert_eq!(enabled, vec!["a"]);
     }
 }
