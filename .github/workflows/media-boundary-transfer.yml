@@ -1,0 +1,89 @@
+name: Materialize reviewed media boundary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-boundary-transfer
+  cancel-in-progress: false
+
+jobs:
+  reviewed_candidate:
+    if: >-
+      github.head_ref == 'release/1.0.0-media-boundary-transfer' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Materialize only the immutable reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          base = 'ca2ffa7c34c7c5e212f24c36b8defe2ea11256d0'
+          tree = '1d982a354f3f8abcad02c26c81b21ae9e5099c4a'
+          expected = '1e0527397dc8e06cf38304b211b5392139082f934cacbae5c834f0a560f09830'
+          encoded = ''.join(pathlib.Path(f'ci/media-boundary-transfer/{i}.b64').read_text().strip() for i in range(1, 5))
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == expected, 'PATCH_INTEGRITY_FAILURE'
+          actual = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], text=True).split()[0]
+          assert actual == base, 'AGNIR_CHECKPOINT_CONFLICT'
+          subprocess.run(['git', 'checkout', '--detach', base], check=True)
+          subprocess.run(['git', 'apply', '--check', '--unidiff-zero', '-'], input=patch, check=True)
+          subprocess.run(['git', 'apply', '--index', '--unidiff-zero', '-'], input=patch, check=True)
+          assert subprocess.check_output(['git', 'write-tree'], text=True).strip() == tree, 'CANDIDATE_TREE_MISMATCH'
+          activation = pathlib.Path('AGNIR.yaml').read_text()
+          assert 'urn:cineharbor:project:cineharbor-addon-sdk' in activation
+          assert 'urn:cineharbor:lineage:cineharbor-addon-sdk' in activation
+          assert not pathlib.Path('.github/workflows/media-boundary-transfer.yml').exists()
+          print('VERIFIED_CANDIDATE_TREE=' + tree)
+          PY
+      - name: Checkout pinned Core
+        run: python3 scripts/ci-checkout.py
+      - name: Install exact Rust gates
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify complete candidate without publication credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/format-owned.py --check
+          cargo check --workspace --all-targets --locked
+          cargo test --workspace --all-targets --all-features --locked
+          cargo test --workspace --doc --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          git diff --exit-code
+          git diff --cached --check
+          test "$(git write-tree)" = 1d982a354f3f8abcad02c26c81b21ae9e5099c4a
+      - name: Create only the reviewed candidate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=ca2ffa7c34c7c5e212f24c36b8defe2ea11256d0
+          tree=1d982a354f3f8abcad02c26c81b21ae9e5099c4a
+          branch=release/1.0.0-media-boundary
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$base" || { echo AGNIR_CHECKPOINT_CONFLICT; exit 1; }
+          test -z "$(git ls-remote origin refs/heads/$branch)" || { echo CANDIDATE_BRANCH_EXISTS; exit 1; }
+          test "$(git write-tree)" = "$tree"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          commit=$(git commit-tree "$tree" -p "$base" -m 'fix(media): enforce resource capabilities and bounded public egress')
+          git -c credential.helper='!gh auth git-credential' push --force-with-lease="refs/heads/$branch:" origin "$commit:refs/heads/$branch"
+          test "$(git ls-remote origin refs/heads/$branch | cut -f1)" = "$commit"
+          echo "PUBLISHED_CANDIDATE=$commit"
+          echo "VERIFIED_CANDIDATE_TREE=$tree"
+          echo 'Main and public releases were not modified.'
