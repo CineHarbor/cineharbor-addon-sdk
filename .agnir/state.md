@@ -28,4 +28,10 @@ The current 1.0.0 source now has scoped, attribute-aware VOD token propagation, 
 
 See `.agnir/evidence/2026-09-20-media-resource-integrity.md` for immutable blob and toolchain evidence. Hosted PR CI and two complete runs at the eventual new main revision are still required. This is not a claim of SSRF/no-open-proxy, production or signed release acceptance.
 
+## Media boundary candidate — 2026-09-20
+
+The resource-integrity predecessor is verified on main at ca2ffa7c (two complete runs, 35483666706 and 35483692103). This candidate adds mandatory HMAC resource capabilities shared by initial VOD/Live metadata and child media resources, connection-time public DNS/literal/redirect policy, bounded authenticated Range/HEAD streaming, overload/cancellation handling and response privacy. The server signing secret is never embedded in URLs. No production private-network bypass, anonymous mode, lint suppression, skipped tests or updater-key change was introduced.
+
+Local pinned/locked gates pass: 65 native workspace tests (35 media), owned fmt, check, doc-test execution and strict Clippy. Three negative controls failed as intended; the full restored candidate passed again. See `.agnir/evidence/2026-09-20-media-boundary.md` and `docs/media-security.md`. Hosted exact-tree PR CI and two final main executions are still required. This is a client wire-contract change: Web/Desktop must preserve issued signatures, not construct unsigned URLs or expose the server secret. Production egress/firewall configuration, actual player/download/expiry behavior and broader release acceptance remain open.
+
 Project `urn:cineharbor:project:cineharbor-addon-sdk`; lineage `urn:cineharbor:lineage:cineharbor-addon-sdk`. Agnir Core/Profile 1.0 / repository-filesystem/1.0 and operations v1.0.2 remain unchanged. License: CC-BY-NC-SA-4.0.

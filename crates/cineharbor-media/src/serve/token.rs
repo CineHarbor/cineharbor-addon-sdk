@@ -1,34 +1,24 @@
-//! Attach proxy credentials only to the configured proxy's resource URLs.
+//! Sign only resource URI attributes, never names, comments, or foreign origins.
 
+use super::access::{MediaAuthorization, now};
+use regex::{Captures, Regex};
 use std::sync::OnceLock;
 
-use regex::{Captures, Regex};
-use url::Url;
-
-pub(super) fn inject_access_token(
+pub(super) fn authorize_manifest(
     content: &str,
-    token: Option<&str>,
-    public_base_url: &str,
+    auth: &MediaAuthorization,
+    public_base: &str,
 ) -> String {
-    let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) else {
-        return content.to_string();
+    let issued = now();
+    let sign = |uri: &str| {
+        auth.sign_proxy_url_at(uri, public_base, issued)
+            .unwrap_or_else(|| uri.to_string())
     };
-    let Ok(base) = Url::parse(public_base_url) else {
-        return content.to_string();
-    };
-    if !matches!(base.scheme(), "http" | "https")
-        || !base.username().is_empty()
-        || base.password().is_some()
-        || base.query().is_some()
-        || base.fragment().is_some()
-    {
-        return content.to_string();
-    }
     content
         .split('\n')
         .map(|line| {
             if !line.starts_with('#') {
-                return credentialed_uri(line, token, &base);
+                return sign(line);
             }
             let tag = line.split(':').next().unwrap_or("");
             if !matches!(
@@ -44,57 +34,23 @@ pub(super) fn inject_access_token(
             ) {
                 return line.to_string();
             }
-            // Consume complete attributes, including quoted commas. URI need not be last;
-            // text in NAME, GROUP-ID or a comment must never receive a credential.
             attribute_regex()
                 .replace_all(line, |captures: &Captures<'_>| {
-                    let value = &captures[2];
                     if &captures[1] != "URI" {
                         return captures[0].to_string();
                     }
-                    let Some(uri) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"'))
+                    let Some(uri) = captures[2]
+                        .strip_prefix('"')
+                        .and_then(|value| value.strip_suffix('"'))
                     else {
                         return captures[0].to_string();
                     };
-                    format!("URI=\"{}\"", credentialed_uri(uri, token, &base))
+                    format!("URI=\"{}\"", sign(uri))
                 })
                 .into_owned()
         })
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-fn credentialed_uri(uri: &str, token: &str, base: &Url) -> String {
-    let Ok(mut url) = Url::parse(uri) else {
-        return uri.to_string();
-    };
-    let prefix = format!("{}/media/vod/", base.path().trim_end_matches('/'));
-    if url.origin() != base.origin()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || !url
-            .path()
-            .strip_prefix(&prefix)
-            .is_some_and(|asset| matches!(asset, "m3u8" | "segment" | "key"))
-    {
-        return uri.to_string();
-    }
-    let pairs = url.query_pairs().into_owned().collect::<Vec<_>>();
-    for required in ["source", "url"] {
-        let values = pairs
-            .iter()
-            .filter(|(key, _)| key == required)
-            .collect::<Vec<_>>();
-        if values.len() != 1 || values[0].1.is_empty() {
-            return uri.to_string();
-        }
-    }
-    // Replace only the top-level token. The upstream URL and its own query stay intact.
-    url.query_pairs_mut()
-        .clear()
-        .extend_pairs(pairs.iter().filter(|(key, _)| key != "token"))
-        .append_pair("token", token);
-    url.to_string()
 }
 
 fn attribute_regex() -> &'static Regex {
@@ -107,9 +63,13 @@ fn attribute_regex() -> &'static Regex {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use url::Url;
 
     const BASE: &str = "https://proxy.test/addon";
-    const TOKEN: &str = "a+b&c=中文";
+    const SECRET: &[u8] = b"0123456789abcdef0123456789abcdef";
+    fn auth() -> MediaAuthorization {
+        MediaAuthorization::new(SECRET).unwrap()
+    }
 
     fn resource(asset: &str) -> String {
         crate::build_vod_proxy_url(
@@ -122,12 +82,18 @@ mod tests {
 
     fn assert_credential(uri: &str) {
         let parsed = Url::parse(uri).unwrap();
-        let tokens = parsed
+        let pairs = parsed
             .query_pairs()
-            .filter(|(key, _)| key == "token")
-            .map(|(_, value)| value.into_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(tokens, vec![TOKEN]);
+            .collect::<std::collections::HashMap<_, _>>();
+        assert!(!pairs.contains_key("token"));
+        assert!(auth().verify(
+            BASE,
+            parsed.path().strip_prefix("/addon/media/").unwrap(),
+            &pairs["source"],
+            &pairs["url"],
+            pairs["expires"].parse().unwrap(),
+            &pairs["sig"]
+        ));
         assert!(parsed.query_pairs().any(|(key, value)| {
             key == "url" && value == "https://cdn.test/a.ts?token=upstream&signature=abc"
         }));
@@ -149,7 +115,7 @@ mod tests {
                 "#EXT-X-{tag}:TYPE=AUDIO,URI=\"{}\",NAME=\"English,token=display\",GROUP-ID=\"audio\"",
                 resource("m3u8")
             );
-            let output = inject_access_token(&line, Some(TOKEN), BASE);
+            let output = authorize_manifest(&line, &auth(), BASE);
             let attribute = attribute_regex()
                 .captures_iter(&output)
                 .find(|capture| &capture[1] == "URI")
@@ -163,9 +129,9 @@ mod tests {
     fn credentials_standalone_resources_once_and_replaces_stale_top_level_tokens() {
         for asset in ["m3u8", "segment", "key"] {
             let input = format!("{}&token=old&token=duplicate#fragment", resource(asset));
-            let once = inject_access_token(&input, Some(TOKEN), BASE);
+            let once = authorize_manifest(&input, &auth(), BASE);
             assert_credential(&once);
-            assert_eq!(once, inject_access_token(&once, Some(TOKEN), BASE));
+            assert_eq!(once, authorize_manifest(&once, &auth(), BASE));
             assert_eq!(Url::parse(&once).unwrap().fragment(), Some("fragment"));
         }
     }
@@ -191,16 +157,13 @@ mod tests {
             format!("#EXT-X-KEY:METHOD=NONE,NAME=\"{own}\""),
         ];
         for input in inputs {
-            assert_eq!(input, inject_access_token(&input, Some(TOKEN), BASE));
+            assert_eq!(input, authorize_manifest(&input, &auth(), BASE));
         }
     }
 
     #[test]
-    fn disabled_or_invalid_configuration_does_not_inject_credentials() {
+    fn invalid_configuration_does_not_sign_resources() {
         let input = resource("segment");
-        for token in [None, Some(""), Some("   ")] {
-            assert_eq!(input, inject_access_token(&input, token, BASE));
-        }
         for base in [
             "not a URL",
             "ftp://proxy.test/addon",
@@ -208,7 +171,7 @@ mod tests {
             "https://proxy.test/addon?private=true",
             "https://proxy.test/addon#fragment",
         ] {
-            assert_eq!(input, inject_access_token(&input, Some(TOKEN), base));
+            assert_eq!(input, authorize_manifest(&input, &auth(), base));
         }
     }
 }

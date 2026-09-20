@@ -16,7 +16,9 @@ use std::sync::Arc;
 
 use cineharbor_addon_live::{LiveAddon, LiveSource, parse_m3u8};
 use cineharbor_addon_sdk::addon::router;
-use cineharbor_media::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, live_proxy_router};
+use cineharbor_media::{
+    MediaAuthorization, MediaClient, ProxyParts, SourceHeaders, live_proxy_router,
+};
 
 const DEMO_PLAYLIST: &str = "\
 #EXTM3U
@@ -117,18 +119,33 @@ async fn main() {
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(11472);
 
-    let (mut addon, source_headers) = build_addon().await;
-    let public_base = format!("http://127.0.0.1:{port}");
+    let (addon, _) = build_addon().await;
+    let authorization =
+        Arc::new(MediaAuthorization::from_environment().expect("initialize media authorization"));
+    let mut addon = addon.with_media_authorization(authorization.clone());
+    let source_headers = addon
+        .sources()
+        .iter()
+        .map(|source| {
+            (
+                source.key.clone(),
+                SourceHeaders {
+                    ua: source.ua.clone(),
+                    referer: source.referer.clone(),
+                    disable_ad_filter: false,
+                },
+            )
+        })
+        .collect();
+    let public_base = std::env::var("CINEHARBOR_ADDON_PUBLIC_BASE_URL")
+        .unwrap_or_else(|_| format!("http://127.0.0.1:{port}"));
     addon.set_public_base_url(Some(public_base.clone()));
 
     let proxy_parts = Arc::new(ProxyParts {
-        client: reqwest::Client::builder()
-            .user_agent(DEFAULT_WEB_UA)
-            .build()
-            .expect("build proxy client"),
+        client: MediaClient::from_environment().expect("build constrained media client"),
         sources: Arc::new(source_headers),
         public_base_url: public_base,
-        access_token: None,
+        authorization,
     });
 
     let app = router(Arc::new(addon)).merge(live_proxy_router(proxy_parts));

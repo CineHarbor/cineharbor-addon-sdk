@@ -5,7 +5,8 @@
 //! 并行）。媒体代理：配置 `public_base_url` 后 stream/meta 播单 url 经 `cineharbor-media`
 //! 转链到自身 `/media/vod/{m3u8,segment,key}`（转链服务见 `main.rs`）；未配置则直链 url。
 
-use std::time::Duration;
+use cineharbor_media::MediaAuthorization;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use cineharbor_addon_protocol::{
@@ -70,6 +71,7 @@ impl VodConfig {
 pub struct VodAddon {
     http: reqwest::Client,
     config: VodConfig,
+    media_authorization: Option<Arc<MediaAuthorization>>,
 }
 
 impl VodAddon {
@@ -79,7 +81,24 @@ impl VodAddon {
             .timeout(Duration::from_secs(10))
             .build()
             .expect("build vod http client");
-        Self { http, config }
+        Self {
+            http,
+            config,
+            media_authorization: None,
+        }
+    }
+
+    pub fn with_media_authorization(mut self, authorization: Arc<MediaAuthorization>) -> Self {
+        self.media_authorization = Some(authorization);
+        self
+    }
+
+    fn proxy_stream_url(&self, source: &str, upstream: &str) -> Option<String> {
+        let uri = stream_url(self.config.public_base_url.as_deref(), source, upstream);
+        match (&self.media_authorization, &self.config.public_base_url) {
+            (Some(auth), Some(base)) => auth.sign_proxy_url(&uri, base),
+            _ => Some(uri),
+        }
     }
 
     pub fn config(&self) -> &VodConfig {
@@ -403,11 +422,7 @@ impl Addon for VodAddon {
                 episode: Some((index + 1).to_string()),
                 stream: Some(Stream {
                     name: Some(title.clone()),
-                    url: Some(stream_url(
-                        self.config.public_base_url.as_deref(),
-                        &detail.source,
-                        url,
-                    )),
+                    url: self.proxy_stream_url(&detail.source, url),
                     ..Stream::default()
                 }),
                 ..Video::default()
@@ -442,11 +457,7 @@ impl Addon for VodAddon {
             .map(|(index, (url, title))| Stream {
                 name: Some(title),
                 title: Some(format!("第{}集", index + 1)),
-                url: Some(stream_url(
-                    self.config.public_base_url.as_deref(),
-                    &source,
-                    &url,
-                )),
+                url: self.proxy_stream_url(&source, &url),
                 ..Stream::default()
             })
             .collect();
@@ -527,5 +538,21 @@ mod tests {
             .map(|site| site.key.as_str())
             .collect();
         assert_eq!(enabled, vec!["a"]);
+    }
+    #[test]
+    fn initial_vod_urls_receive_resource_signatures_not_the_shared_secret() {
+        let secret = b"0123456789abcdef0123456789abcdef";
+        let addon = VodAddon::new(VodConfig {
+            public_base_url: Some("https://proxy.test/addon".into()),
+            ..VodConfig::default()
+        })
+        .with_media_authorization(Arc::new(MediaAuthorization::new(secret).unwrap()));
+        let signed = addon
+            .proxy_stream_url("source", "https://cdn.test/movie.m3u8?token=upstream")
+            .unwrap();
+        assert!(signed.contains("&sig="));
+        assert!(signed.contains("&expires="));
+        assert!(!signed.contains(std::str::from_utf8(secret).unwrap()));
+        assert!(!signed.contains("&token="));
     }
 }

@@ -268,8 +268,11 @@ name = "cineharbor-media"
 version = "1.0.0"
 dependencies = [
  "axum",
+ "base64",
+ "futures-util",
  "regex",
  "reqwest",
+ "ring",
  "serde",
  "tokio",
  "url",

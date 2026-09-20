@@ -11,5 +11,7 @@ reqwest.workspace = true
 serde.workspace = true
 url.workspace = true
 
-[dev-dependencies]
-tokio.workspace = true
+base64 = "0.22.1"
+ring = "0.17.14"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { workspace = true, features = ["sync"] }

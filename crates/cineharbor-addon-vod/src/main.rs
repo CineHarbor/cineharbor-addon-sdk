@@ -12,7 +12,9 @@ use std::sync::Arc;
 
 use cineharbor_addon_sdk::addon::router;
 use cineharbor_addon_vod::{VodAddon, VodConfig};
-use cineharbor_media::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, vod_proxy_router};
+use cineharbor_media::{
+    MediaAuthorization, MediaClient, ProxyParts, SourceHeaders, vod_proxy_router,
+};
 
 fn load_config() -> VodConfig {
     let Some(path) = std::env::var("CINEHARBOR_VOD_SITES").ok() else {
@@ -41,6 +43,7 @@ async fn main() {
         config
             .sites
             .iter()
+            .filter(|site| !site.disabled)
             .map(|site| {
                 (
                     site.key.clone(),
@@ -53,22 +56,20 @@ async fn main() {
             })
             .collect::<HashMap<_, _>>(),
     );
-    let access_token = std::env::var("CINEHARBOR_MEDIA_PROXY_TOKEN")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+    let authorization =
+        Arc::new(MediaAuthorization::from_environment().expect("initialize media authorization"));
     let proxy_parts = Arc::new(ProxyParts {
-        client: reqwest::Client::builder()
-            .user_agent(DEFAULT_WEB_UA)
-            .build()
-            .expect("build proxy client"),
+        client: MediaClient::from_environment().expect("build constrained media client"),
         sources,
         public_base_url: public_base.clone(),
-        access_token,
+        authorization: authorization.clone(),
     });
 
     config.public_base_url = Some(public_base);
-    let app = router(Arc::new(VodAddon::new(config))).merge(vod_proxy_router(proxy_parts));
+    let app = router(Arc::new(
+        VodAddon::new(config).with_media_authorization(authorization),
+    ))
+    .merge(vod_proxy_router(proxy_parts));
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
         .await
