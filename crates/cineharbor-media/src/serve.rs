@@ -13,6 +13,9 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
+mod token;
+use token::inject_access_token;
+
 use crate::ad_filter::{AdFilterConfig, filter_m3u8};
 use crate::{rewrite_live_manifest_content, rewrite_vod_manifest_content};
 
@@ -94,10 +97,14 @@ async fn vod_m3u8(
         return bad_request("missing source or url");
     };
     match fetch_manifest(&parts, &source, &url).await {
-        Ok(text) => {
+        Ok((text, final_url)) => {
             let rewritten =
-                rewrite_vod_manifest_content(&text, &url, &source, &parts.public_base_url);
-            let rewritten = inject_access_token(&rewritten, parts.access_token.as_deref());
+                rewrite_vod_manifest_content(&text, &final_url, &source, &parts.public_base_url);
+            let rewritten = inject_access_token(
+                &rewritten,
+                parts.access_token.as_deref(),
+                &parts.public_base_url,
+            );
             let disable_ad_filter = parts
                 .sources
                 .get(&source)
@@ -139,9 +146,14 @@ async fn live_m3u8(
         return bad_request("missing source or url");
     };
     match fetch_manifest(&parts, &source, &url).await {
-        Ok(text) => {
-            let rewritten =
-                rewrite_live_manifest_content(&text, &url, &source, &parts.public_base_url, false);
+        Ok((text, final_url)) => {
+            let rewritten = rewrite_live_manifest_content(
+                &text,
+                &final_url,
+                &source,
+                &parts.public_base_url,
+                false,
+            );
             manifest_response(rewritten)
         }
         Err(response) => *response,
@@ -170,32 +182,6 @@ fn authorize(parts: &ProxyParts, provided: Option<&str>) -> Option<Response> {
     } else {
         Some((StatusCode::UNAUTHORIZED, "unauthorized").into_response())
     }
-}
-
-fn inject_access_token(content: &str, token: Option<&str>) -> String {
-    let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) else {
-        return content.to_string();
-    };
-    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
-    serializer.append_pair("token", token);
-    let suffix = format!("&{}", serializer.finish());
-    content
-        .split('\n')
-        .map(|line| {
-            if line.contains("/media/vod/") && line.contains("source=") && !line.contains("token=")
-            {
-                if let Some(quote_at) = line.rfind('"') {
-                    let (prefix, suffix_quote) = line.split_at(quote_at);
-                    format!("{prefix}{suffix}{suffix_quote}")
-                } else {
-                    format!("{line}{suffix}")
-                }
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 fn parse_query(source: Option<String>, url: Option<String>) -> Option<(String, String)> {
@@ -250,24 +236,27 @@ async fn fetch_manifest(
     parts: &ProxyParts,
     source: &str,
     url: &str,
-) -> Result<String, Box<Response>> {
+) -> Result<(String, String), Box<Response>> {
     let response = parts
         .client
         .get(url)
         .headers(parts.headers_for(source))
         .send()
         .await
-        .map_err(|error| Box::new(bad_gateway(format!("upstream fetch failed: {error}"))))?;
+        .map_err(|_| Box::new(bad_gateway("upstream fetch failed".into())))?;
     if !response.status().is_success() {
         return Err(Box::new(bad_gateway(format!(
             "upstream status: {}",
             response.status()
         ))));
     }
+    // Relative playlist resources belong to the final response URL, not the redirect origin.
+    let final_url = response.url().to_string();
     response
         .text()
         .await
-        .map_err(|error| Box::new(bad_gateway(format!("upstream body read failed: {error}"))))
+        .map(|text| (text, final_url))
+        .map_err(|_| Box::new(bad_gateway("upstream body read failed".into())))
 }
 
 async fn forward_bytes(parts: &ProxyParts, source: &str, url: &str) -> Response {
@@ -279,7 +268,7 @@ async fn forward_bytes(parts: &ProxyParts, source: &str, url: &str) -> Response 
         .await
     {
         Ok(response) => response,
-        Err(error) => return bad_gateway(format!("upstream fetch failed: {error}")),
+        Err(_) => return bad_gateway("upstream fetch failed".into()),
     };
     let status = response.status();
     if !status.is_success() {
@@ -287,7 +276,7 @@ async fn forward_bytes(parts: &ProxyParts, source: &str, url: &str) -> Response 
     }
     match response.bytes().await {
         Ok(bytes) => bytes_response(status, "application/octet-stream", bytes.to_vec()),
-        Err(error) => bad_gateway(format!("upstream body read failed: {error}")),
+        Err(_) => bad_gateway("upstream body read failed".into()),
     }
 }
 
@@ -388,5 +377,121 @@ mod tests {
         let body = response.text().await.unwrap();
         assert!(body.contains("http://proxy.test/media/live/m3u8?cineharbor-source=live1&url="));
         assert!(body.contains("ch.m3u8"));
+    }
+
+    #[tokio::test]
+    async fn redirected_manifests_use_the_final_document_for_vod_and_live() {
+        let upstream = Router::new()
+            .route(
+                "/original.m3u8",
+                get(|| async { axum::response::Redirect::temporary("/cdn/current/index.m3u8") }),
+            )
+            .route(
+                "/cdn/current/index.m3u8",
+                get(|| async { "#EXTM3U\n#EXTINF:4,\nsegment.ts\n" }),
+            );
+        let upstream_addr = serve_router(upstream).await;
+        let parts = Arc::new(ProxyParts {
+            client: reqwest::Client::new(),
+            sources: Arc::new(HashMap::new()),
+            public_base_url: "http://proxy.test".into(),
+            access_token: None,
+        });
+        let proxy_addr =
+            serve_router(vod_proxy_router(parts.clone()).merge(live_proxy_router(parts))).await;
+        let original = format!("http://{upstream_addr}/original.m3u8");
+        for (kind, source_key) in [("vod", "source"), ("live", "cineharbor-source")] {
+            let mut request =
+                url::Url::parse(&format!("http://{proxy_addr}/media/{kind}/m3u8")).unwrap();
+            request
+                .query_pairs_mut()
+                .append_pair(source_key, "src")
+                .append_pair("url", &original);
+            let response = reqwest::get(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let text = response.text().await.unwrap();
+            let segment = text.lines().find(|line| line.starts_with("http:")).unwrap();
+            let segment = url::Url::parse(segment).unwrap();
+            let target = segment
+                .query_pairs()
+                .find(|(key, _)| key == "url")
+                .unwrap()
+                .1;
+            assert_eq!(
+                target,
+                format!("http://{upstream_addr}/cdn/current/segment.ts")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn authorized_multitrack_manifest_keeps_tokens_on_resource_uris() {
+        let upstream = Router::new().route(
+            "/index.m3u8",
+            get(|| async {
+                "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\",NAME=\"English\"\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",KEYFORMAT=\"identity\"\n#EXTINF:4,\nsegment.ts\n"
+            }),
+        );
+        let upstream_addr = serve_router(upstream).await;
+        let parts = Arc::new(ProxyParts {
+            client: reqwest::Client::new(),
+            sources: Arc::new(HashMap::new()),
+            public_base_url: "http://proxy.test".into(),
+            access_token: Some("secret+token".into()),
+        });
+        let proxy_addr = serve_router(vod_proxy_router(parts)).await;
+        let mut request = url::Url::parse(&format!("http://{proxy_addr}/media/vod/m3u8")).unwrap();
+        request
+            .query_pairs_mut()
+            .append_pair("source", "src")
+            .append_pair("url", &format!("http://{upstream_addr}/index.m3u8"))
+            .append_pair("token", "secret+token");
+        let response = reqwest::get(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let text = response.text().await.unwrap();
+        assert!(text.contains("NAME=\"English\""));
+        assert!(text.contains("KEYFORMAT=\"identity\""));
+        let uri_regex = regex::Regex::new(r#"URI="([^"]+)""#).unwrap();
+        let mut resources = uri_regex
+            .captures_iter(&text)
+            .map(|capture| capture[1].to_string())
+            .collect::<Vec<_>>();
+        resources.extend(
+            text.lines()
+                .filter(|line| line.starts_with("http:"))
+                .map(str::to_string),
+        );
+        assert_eq!(resources.len(), 3);
+        for resource in resources {
+            let url = url::Url::parse(&resource).unwrap();
+            assert!(
+                url.query_pairs()
+                    .any(|(key, value)| key == "token" && value == "secret+token")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn upstream_failures_do_not_disclose_signed_urls() {
+        // Reserve a real local port, then close it to obtain a deterministic refused connection.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let parts = ProxyParts {
+            client: reqwest::Client::new(),
+            sources: Arc::new(HashMap::new()),
+            public_base_url: "http://proxy.test".into(),
+            access_token: None,
+        };
+        let url = format!("http://{addr}/private.m3u8?signature=must-not-leak");
+        let manifest = fetch_manifest(&parts, "src", &url).await.unwrap_err();
+        let bytes = forward_bytes(&parts, "src", &url).await;
+        for response in [*manifest, bytes] {
+            assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+            let body = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
+            assert_eq!(&body[..], b"upstream fetch failed");
+        }
     }
 }

@@ -22,4 +22,10 @@ Media authorization/SSRF, production deployment smoke and final security/license
 
 See `.agnir/evidence/2026-09-19-version-1.0.0.md`.
 
+## Media resource integrity — 2026-09-20
+
+The current 1.0.0 source now has scoped, attribute-aware VOD token propagation, final-response/document-relative HLS resolution for VOD and Live, and sanitized upstream error responses. Eight new tests cover URI ordering, credential scope/idempotence, redirects, extensionless/query-only references and diagnostic redaction. On the current workspace plus the recorded code blobs, all 47 native tests passed with no failures/ignores; owned formatting, locked check, doc tests and strict Clippy also passed. Restoring the previous implementation made all four new handler/URL regression checks fail, then restoring the repair returned the workspace to green.
+
+See `.agnir/evidence/2026-09-20-media-resource-integrity.md` for immutable blob and toolchain evidence. Hosted PR CI and two complete runs at the eventual new main revision are still required. This is not a claim of SSRF/no-open-proxy, production or signed release acceptance.
+
 Project `urn:cineharbor:project:cineharbor-addon-sdk`; lineage `urn:cineharbor:lineage:cineharbor-addon-sdk`. Agnir Core/Profile 1.0 / repository-filesystem/1.0 and operations v1.0.2 remain unchanged. License: CC-BY-NC-SA-4.0.
