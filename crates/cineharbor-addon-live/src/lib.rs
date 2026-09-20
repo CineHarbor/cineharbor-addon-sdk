@@ -10,6 +10,8 @@ use cineharbor_addon_protocol::{
     Resource, Stream, StreamsResponse,
 };
 use cineharbor_addon_sdk::addon::{Addon, CatalogRequest};
+use cineharbor_media::MediaAuthorization;
+use std::sync::Arc;
 
 /// 解析出的单个直播频道。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +73,7 @@ pub struct LiveAddon {
     addon_name: String,
     sources: Vec<LiveSource>,
     public_base_url: Option<String>,
+    media_authorization: Option<Arc<MediaAuthorization>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -99,7 +102,13 @@ impl LiveAddon {
             addon_name: name.into(),
             sources,
             public_base_url: None,
+            media_authorization: None,
         }
+    }
+
+    pub fn with_media_authorization(mut self, authorization: Arc<MediaAuthorization>) -> Self {
+        self.media_authorization = Some(authorization);
+        self
     }
 
     pub fn set_public_base_url(&mut self, base: Option<String>) {
@@ -119,12 +128,21 @@ impl LiveAddon {
         Some((source, source.channels.get(idx)?))
     }
 
-    fn stream_url(&self, source: &LiveSource, channel: &Channel) -> String {
+    fn stream_url(&self, source: &LiveSource, channel: &Channel) -> Option<String> {
         match &self.public_base_url {
             Some(base) => {
-                cineharbor_media::build_live_proxy_m3u8_url(base, &source.key, &channel.url, false)
+                let uri = cineharbor_media::build_live_proxy_m3u8_url(
+                    base,
+                    &source.key,
+                    &channel.url,
+                    false,
+                );
+                match &self.media_authorization {
+                    Some(auth) => auth.sign_proxy_url(&uri, base),
+                    None => Some(uri),
+                }
             }
-            None => channel.url.clone(),
+            None => Some(channel.url.clone()),
         }
     }
 }
@@ -190,7 +208,7 @@ impl Addon for LiveAddon {
         let streams = match self.channel_of(id) {
             Some((source, c)) => vec![Stream {
                 name: Some(c.name.clone()),
-                url: Some(self.stream_url(source, c)),
+                url: self.stream_url(source, c),
                 ..Stream::default()
             }],
             None => vec![],
@@ -313,5 +331,17 @@ http://example.test/2.m3u8
         let url = s.streams[0].url.as_deref().unwrap();
         assert!(url.starts_with("http://addon/media/live/m3u8?cineharbor-source=default&url="));
         assert!(url.contains("http%3A%2F%2Fexample.test%2F1.m3u8"));
+    }
+    #[tokio::test]
+    async fn initial_live_streams_receive_resource_signatures() {
+        let mut addon = LiveAddon::from_playlist("test", PLAYLIST)
+            .with_media_authorization(Arc::new(MediaAuthorization::new(&[7; 32]).unwrap()));
+        addon.set_public_base_url(Some("https://proxy.test/addon".into()));
+        let streams = addon.streams(ContentType::Tv, "live:default:0").await;
+        let signed = streams.streams[0].url.as_ref().unwrap();
+        assert!(signed.contains("/media/live/m3u8?cineharbor-source=default&url="));
+        assert!(signed.contains("&sig="));
+        assert!(signed.contains("&expires="));
+        assert!(!signed.contains("&token="));
     }
 }

@@ -1,9 +1,7 @@
 # cineharbor-addon-sdk Next Actions
 
-1. Run the media-resource-integrity repair through the complete PR matrix. After merge, require two complete successful CI runs on the exact new main SHA; the prior version/Core-pin CI does not cover this repair.
-2. Publish the verified SDK SHA to Web/Desktop dependency pins; downstream revisions must not pin an unverified candidate.
-3. Complete the remaining media egress/SSRF/DNS-rebinding/no-open-proxy boundary and Live authorization, then verify Range/HEAD and bounded/streaming byte handling. HLS token propagation/redirect resolution/error redaction now have regression evidence, not blanket media-security certification.
-4. Execute documented production health/CORS/auth/timeout smoke for deployed Douban/Bangumi/Live/VOD/media services. Missing production credentials/access remain explicit external blockers.
-5. Reconcile security/license evidence and the seven-repository release matrix before public publication.
-
-Continue autonomously under the Principal's 2026-09-19 release authorization.
+1. Publish the reviewed media-boundary candidate with its coherent checkpoint; require the complete PR matrix and two observed successful runs on the exact resulting main SHA. Preserve the strict gates; do not count transfer-job or prior-source CI as final main evidence.
+2. Migrate Web/Desktop to preserve addon-issued `sig`/`expires` URLs, remove browser exposure of the media signing secret, refresh expired metadata, and exercise signed initial/child/download/Range paths before coordinated deployment. Then align final Core/SDK/Web/Desktop pins and versions with fresh downstream matrices.
+3. Validate deployed VOD/Live/Douban/Bangumi services, public-base/port configuration, TLS, secret provisioning, egress firewall and rate limits. Unit and loopback tests are not production DNS or player acceptance.
+4. Finish the ADR consumer audit without capability loss, full browser/installed client acceptance, signed RC/updater data preservation, and security/license/brand review. External credentials and OS/production access must remain explicit blockers when unavailable.
+5. Reconcile the facade's seven-repository evidence matrix; RELEASE_READY and PUBLIC_RELEASE_EXECUTED stay false until their actual gates are satisfied. Do not publicly release during this preparation run.

@@ -16,7 +16,10 @@ use url::Url;
 mod ad_filter;
 mod serve;
 pub use ad_filter::{AdFilterConfig, FilterResult, filter_m3u8};
-pub use serve::{DEFAULT_WEB_UA, ProxyParts, SourceHeaders, live_proxy_router, vod_proxy_router};
+pub use serve::{
+    DEFAULT_WEB_UA, MEDIA_URL_TTL_SECONDS, MediaAuthorization, MediaClient, ProxyParts,
+    SourceHeaders, live_proxy_router, vod_proxy_router,
+};
 
 /// HLS 资产类别，决定重写到哪个代理端点。
 #[derive(Clone, Copy)]
