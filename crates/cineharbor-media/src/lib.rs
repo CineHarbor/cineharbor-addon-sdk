@@ -92,7 +92,8 @@ pub fn rewrite_vod_manifest_content(
     source: &str,
     public_base_url: &str,
 ) -> String {
-    let base_url = get_base_url(final_url);
+    // Resolve against the document itself (including its path and query), per RFC 3986.
+    let base_url = final_url;
     let lines = sanitize_vod_manifest_lines(
         content
             .split('\n')
@@ -119,7 +120,7 @@ pub fn rewrite_vod_manifest_content(
                 .unwrap_or_default();
 
             if !next_line.is_empty() && !next_line.starts_with('#') {
-                let resolved_url = resolve_url(&base_url, &next_line);
+                let resolved_url = resolve_url(base_url, &next_line);
                 rewritten_lines.push(build_vod_proxy_m3u8_url(
                     public_base_url,
                     source,
@@ -139,7 +140,7 @@ pub fn rewrite_vod_manifest_content(
         {
             rewritten_lines.push(rewrite_attribute_uri(
                 trimmed_line,
-                &base_url,
+                base_url,
                 source,
                 public_base_url,
                 VodAssetKind::M3u8,
@@ -153,7 +154,7 @@ pub fn rewrite_vod_manifest_content(
         {
             rewritten_lines.push(rewrite_attribute_uri(
                 trimmed_line,
-                &base_url,
+                base_url,
                 source,
                 public_base_url,
                 VodAssetKind::Key,
@@ -168,7 +169,7 @@ pub fn rewrite_vod_manifest_content(
         {
             rewritten_lines.push(rewrite_attribute_uri(
                 trimmed_line,
-                &base_url,
+                base_url,
                 source,
                 public_base_url,
                 VodAssetKind::Segment,
@@ -178,7 +179,7 @@ pub fn rewrite_vod_manifest_content(
         }
 
         if !trimmed_line.starts_with('#') {
-            let resolved_url = resolve_url(&base_url, trimmed_line);
+            let resolved_url = resolve_url(base_url, trimmed_line);
             if looks_like_manifest_url(&resolved_url) {
                 rewritten_lines.push(build_vod_proxy_m3u8_url(
                     public_base_url,
@@ -242,7 +243,8 @@ pub fn rewrite_live_manifest_content(
     public_base_url: &str,
     allow_cors: bool,
 ) -> String {
-    let base_url = get_base_url(final_url);
+    // Resolve against the document itself (including its path and query), per RFC 3986.
+    let base_url = final_url;
     let lines = content.split('\n').collect::<Vec<_>>();
     let mut rewritten_lines = Vec::new();
     let mut index = 0;
@@ -262,7 +264,7 @@ pub fn rewrite_live_manifest_content(
                 .map(|line| line.trim())
                 .unwrap_or_default();
             if !next_line.is_empty() && !next_line.starts_with('#') {
-                let resolved_url = resolve_url(&base_url, next_line);
+                let resolved_url = resolve_url(base_url, next_line);
                 rewritten_lines.push(build_live_proxy_m3u8_url(
                     public_base_url,
                     source_key,
@@ -282,7 +284,7 @@ pub fn rewrite_live_manifest_content(
         {
             rewritten_lines.push(rewrite_manifest_uri_attribute(
                 trimmed_line,
-                &base_url,
+                base_url,
                 |resolved_url| {
                     build_live_proxy_m3u8_url(public_base_url, source_key, resolved_url, false)
                 },
@@ -296,7 +298,7 @@ pub fn rewrite_live_manifest_content(
         {
             rewritten_lines.push(rewrite_manifest_uri_attribute(
                 trimmed_line,
-                &base_url,
+                base_url,
                 |resolved_url| build_live_proxy_key_url(public_base_url, source_key, resolved_url),
             ));
             index += 1;
@@ -309,7 +311,7 @@ pub fn rewrite_live_manifest_content(
         {
             rewritten_lines.push(rewrite_manifest_uri_attribute(
                 trimmed_line,
-                &base_url,
+                base_url,
                 |resolved_url| {
                     build_live_proxy_segment_url(public_base_url, source_key, resolved_url)
                 },
@@ -319,7 +321,7 @@ pub fn rewrite_live_manifest_content(
         }
 
         if !trimmed_line.starts_with('#') {
-            let resolved_url = resolve_url(&base_url, trimmed_line);
+            let resolved_url = resolve_url(base_url, trimmed_line);
             rewritten_lines.push(if allow_cors {
                 resolved_url
             } else {
@@ -664,5 +666,51 @@ mod tests {
             resolve_url("https://cdn.test/a/b/", "../up.ts"),
             "https://cdn.test/a/up.ts"
         );
+    }
+
+    #[test]
+    fn hls_relative_references_use_the_complete_document_url() {
+        for (document, reference, expected) in [
+            (
+                "https://cdn.test/a/playlist",
+                "segment.ts",
+                "https://cdn.test/a/segment.ts",
+            ),
+            (
+                "https://cdn.test/a/index.m3u8?old=1",
+                "?variant=2",
+                "https://cdn.test/a/index.m3u8?variant=2",
+            ),
+            (
+                "https://cdn.test/a/",
+                "segment.ts",
+                "https://cdn.test/a/segment.ts",
+            ),
+            (
+                "https://cdn.test/a/index.m3u8",
+                "../segment.ts",
+                "https://cdn.test/segment.ts",
+            ),
+        ] {
+            let content = format!("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n{reference}\n");
+            for rewritten in [
+                rewrite_vod_manifest_content(&content, document, "src", "https://proxy.test"),
+                rewrite_live_manifest_content(
+                    &content,
+                    document,
+                    "src",
+                    "https://proxy.test",
+                    false,
+                ),
+            ] {
+                let uri = rewritten
+                    .lines()
+                    .find(|line| line.starts_with("https:"))
+                    .unwrap();
+                let uri = Url::parse(uri).unwrap();
+                let target = uri.query_pairs().find(|(key, _)| key == "url").unwrap().1;
+                assert_eq!(target, expected);
+            }
+        }
     }
 }
