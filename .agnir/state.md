@@ -35,3 +35,7 @@ The resource-integrity predecessor is verified on main at ca2ffa7c (two complete
 Local pinned/locked gates pass: 65 native workspace tests (35 media), owned fmt, check, doc-test execution and strict Clippy. Three negative controls failed as intended; the full restored candidate passed again. See `.agnir/evidence/2026-09-20-media-boundary.md` and `docs/media-security.md`. Hosted exact-tree PR CI and two final main executions are still required. This is a client wire-contract change: Web/Desktop must preserve issued signatures, not construct unsigned URLs or expose the server secret. Production egress/firewall configuration, actual player/download/expiry behavior and broader release acceptance remain open.
 
 Project `urn:cineharbor:project:cineharbor-addon-sdk`; lineage `urn:cineharbor:lineage:cineharbor-addon-sdk`. Agnir Core/Profile 1.0 / repository-filesystem/1.0 and operations v1.0.2 remain unchanged. License: CC-BY-NC-SA-4.0.
+
+## 2026-10-18 rustls advisory patch candidate
+
+SDK main 3ab4ff8fcc38a6f0849389a7c6b66291f3ca341d has two successful complete CI runs 35501487450 and 35501530721. Its dependency audit found rustls 0.23.43 vulnerable to RUSTSEC-2026-0285; this branch updates only the lock to the official registry rustls 0.23.45 checksum `0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634`. Full hosted CI not yet observed. Installed-app acceptance and public-release signing remain separate. See `.agnir/evidence/2026-10-18-rustls-security.md`.

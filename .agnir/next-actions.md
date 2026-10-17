@@ -1,7 +1,6 @@
-# cineharbor-addon-sdk Next Actions
+# cineharbor-addon-sdk Next Actions — 2026-10-18
 
-1. Publish the reviewed media-boundary candidate with its coherent checkpoint; require the complete PR matrix and two observed successful runs on the exact resulting main SHA. Preserve the strict gates; do not count transfer-job or prior-source CI as final main evidence.
-2. Migrate Web/Desktop to preserve addon-issued `sig`/`expires` URLs, remove browser exposure of the media signing secret, refresh expired metadata, and exercise signed initial/child/download/Range paths before coordinated deployment. Then align final Core/SDK/Web/Desktop pins and versions with fresh downstream matrices.
-3. Validate deployed VOD/Live/Douban/Bangumi services, public-base/port configuration, TLS, secret provisioning, egress firewall and rate limits. Unit and loopback tests are not production DNS or player acceptance.
-4. Finish the ADR consumer audit without capability loss, full browser/installed client acceptance, signed RC/updater data preservation, and security/license/brand review. External credentials and OS/production access must remain explicit blockers when unavailable.
-5. Reconcile the facade's seven-repository evidence matrix; RELEASE_READY and PUBLIC_RELEASE_EXECUTED stay false until their actual gates are satisfied. Do not publicly release during this preparation run.
+1. Require strict locked SDK fmt/check/test/clippy PR CI at the rustls 0.23.45 lock candidate; merge only after green and require two complete main CI executions at identical SHA. Run full RustSec audit using updated DB and classify residual findings.
+2. Advance Core's SDK source pin to new verified SDK and update its own rustls lock; then Web and Desktop to immutable verified revisions. Preserve signed-media wire contracts.
+3. Complete deployed public DNS/egress, VOD/Live/Douban/Bangumi and real player/download functional smoke (not CI-only).
+4. Resolve other vulnerability/license/brand/architecture review findings; production code signing/updater postponed to separately authorized public release, not waived. RELEASE_READY=false; PUBLIC_RELEASE_EXECUTED=false.
